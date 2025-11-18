@@ -76,3 +76,4 @@ npm run dev             # http://localhost:5173
 - 既存の Streamlit 実装（`kaizenteian.py` など）は残してあります。必要に応じて削除/連携してください。
 
 以上で Django + Vue 構成の改善提案アプリを起動できます。質問や追加要望があればお知らせください。
+# kaizen_pp
