@@ -4,6 +4,7 @@ from datetime import datetime, time
 
 from django.db.models import Count, F, Q
 from django.http import HttpResponse
+from django.contrib.auth import authenticate, login, logout
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -152,5 +153,30 @@ class CurrentEmployeeView(APIView):
 class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Employee.objects.select_related("department")
     serializer_class = EmployeeSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        if not username or not password:
+            return Response({'detail': 'ユーザー名とパスワードを入力してください'}, status=status.HTTP_400_BAD_REQUEST)
+        user = authenticate(request, username=username, password=password)
+        if not user:
+            return Response({'detail': '認証に失敗しました'}, status=status.HTTP_400_BAD_REQUEST)
+        login(request, user)
+        employee = getattr(user, 'employee_profile', None)
+        employee_data = EmployeeSerializer(employee).data if employee else None
+        return Response({'username': user.username, 'employee': employee_data})
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        logout(request)
+        return Response({'detail': 'logged out'})
