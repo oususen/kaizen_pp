@@ -1,24 +1,17 @@
 """
-Helpers for bootstrapping a SQLAlchemy engine from MySQL-related environment variables.
+Helpers for bootstrapping a SQLAlchemy engine from the .env-managed MySQL settings.
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import cast
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-PRIMARY_DB_KEYS = {
-    "host": "PRIMARY_DB_HOST",
-    "port": "PRIMARY_DB_PORT",
-    "user": "PRIMARY_DB_USER",
-    "password": "PRIMARY_DB_PASSWORD",
-    "database": "PRIMARY_DB_NAME",
-}
-DEFAULT_PORT = "3306"
-DEFAULT_DATABASE = "kaizen_db"
+from config import get_mysql_settings
+
+REQUIRED_FIELDS = ("host", "user", "password")
 
 
 @dataclass
@@ -29,30 +22,24 @@ class MySQLSettings:
     port: str
     user: str
     password: str
-    database: str = DEFAULT_DATABASE
+    database: str
 
     @classmethod
     def from_env(cls) -> "MySQLSettings":
-        """
-        Read the PRIMARY_DB_* environment variables and build a settings object.
-
-        Raises:
-            ValueError: When any of host/user/password is missing.
-        """
-        values: Dict[str, Optional[str]] = {
-            field: os.getenv(env_name) for field, env_name in PRIMARY_DB_KEYS.items()
-        }
-        missing = [
-            field for field in ("host", "user", "password") if not values.get(field)
-        ]
+        """Read values from .env via config.get_mysql_settings()."""
+        values = get_mysql_settings()
+        missing = [field for field in REQUIRED_FIELDS if not values.get(field)]
         if missing:
             raise ValueError(
-                "Missing MySQL environment variables: "
-                + ", ".join(PRIMARY_DB_KEYS[field] for field in missing)
+                "Missing MySQL .env entries: " + ", ".join(missing)
             )
-        values["port"] = values.get("port") or DEFAULT_PORT
-        values["database"] = values.get("database") or DEFAULT_DATABASE
-        return cls(**values)  # type: ignore[arg-type]
+        return cls(
+            host=cast(str, values["host"]),
+            port=cast(str, values["port"]),
+            user=cast(str, values["user"]),
+            password=cast(str, values["password"]),
+            database=cast(str, values["database"]),
+        )
 
     def to_sqlalchemy_url(self) -> str:
         """Return a PyMySQL-based SQLAlchemy URL."""
@@ -63,15 +50,7 @@ class MySQLSettings:
 
 
 def create_mysql_engine_from_env() -> Engine:
-    """
-    Build a SQLAlchemy engine configured for the PRIMARY_DB_* environment variables.
-
-    Example:
-
-        >>> engine = create_mysql_engine_from_env()
-        >>> with engine.connect() as conn:
-        ...     conn.execute(text("SELECT 1"))
-    """
+    """Build a SQLAlchemy engine configured via the .env settings."""
     settings = MySQLSettings.from_env()
     return create_engine(settings.to_sqlalchemy_url(), pool_pre_ping=True)
 
