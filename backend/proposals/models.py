@@ -47,6 +47,30 @@ class Proposal(models.Model):
     department = models.ForeignKey(
         Department, on_delete=models.PROTECT, related_name="proposals"
     )
+    section = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        related_name="section_proposals",
+        null=True,
+        blank=True,
+        limit_choices_to={"level": "section"},
+    )
+    group = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        related_name="group_proposals",
+        null=True,
+        blank=True,
+        limit_choices_to={"level": "group"},
+    )
+    team = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        related_name="team_proposals",
+        null=True,
+        blank=True,
+        limit_choices_to={"level": "team"},
+    )
     team_name = models.CharField(max_length=128, blank=True)
     problem = models.TextField()
     idea = models.TextField()
@@ -147,7 +171,6 @@ class ImprovementProposal(models.Model):
         on_delete=models.PROTECT,
         related_name="improvement_proposals",
     )
-    affiliation = models.CharField("所属担当", max_length=128, blank=True)
     deployment_item = models.CharField("展開項目", max_length=255, blank=True)
     proposer = models.ForeignKey(
         Employee,

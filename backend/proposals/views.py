@@ -5,6 +5,8 @@ from datetime import datetime, time
 from django.db.models import Count, F, Q
 from django.http import HttpResponse
 from django.contrib.auth import authenticate, login, logout
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -59,7 +61,6 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(management_no__icontains=keyword)
                 | Q(proposer_name__icontains=keyword)
-                | Q(affiliation__icontains=keyword)
                 | Q(deployment_item__icontains=keyword)
             )
 
@@ -126,7 +127,7 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         end_dt = datetime.combine(end_date, time.max)
         proposals = (
             ImprovementProposal.objects.filter(submitted_at__range=(start_dt, end_dt))
-            .select_related("department", "proposer")
+            .select_related("department", "section", "group", "team", "proposer")
             .prefetch_related("approvals__confirmed_by")
         )
         buffer = generate_term_report(proposals, term_number)
@@ -156,6 +157,7 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -180,3 +182,4 @@ class LogoutView(APIView):
     def post(self, request):
         logout(request)
         return Response({'detail': 'logged out'})
+

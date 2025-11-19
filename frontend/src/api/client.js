@@ -99,4 +99,16 @@ export const exportTermReport = async (term) => {
   return response.blob()
 }
 
-export const fetchConfirmed = () => fetchProposals({ status: 'completed' })\nexport const loginUser = (credentials) =>\n  request('/auth/login/', {\n    method: 'POST',\n    body: credentials,\n  })\n\nexport const logoutUser = () =>\n  request('/auth/logout/', {\n    method: 'POST',\n  })\n
+export const fetchConfirmed = () => fetchProposals({ status: 'completed' })
+export const loginUser = (credentials) =>
+  request('/auth/login/', {
+    method: 'POST',
+    body: credentials,
+  })
+
+export const logoutUser = () =>
+  request('/auth/logout/', {
+    method: 'POST',
+  })
+export const fetchEmployees = () => request('/employees/')
+

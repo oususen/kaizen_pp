@@ -69,6 +69,9 @@ class ProposalApprovalSerializer(serializers.ModelSerializer):
 
 class ImprovementProposalSerializer(serializers.ModelSerializer):
     department_detail = DepartmentSerializer(source="department", read_only=True)
+    section_detail = DepartmentSerializer(source="section", read_only=True)
+    group_detail = DepartmentSerializer(source="group", read_only=True)
+    team_detail = DepartmentSerializer(source="team", read_only=True)
     proposer_detail = EmployeeSerializer(source="proposer", read_only=True)
     approvals = ProposalApprovalSerializer(many=True, read_only=True)
     before_image = serializers.ImageField(write_only=True, required=False)
@@ -86,7 +89,12 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "submitted_at",
             "department",
             "department_detail",
-            "affiliation",
+            "section",
+            "section_detail",
+            "group",
+            "group_detail",
+            "team",
+            "team_detail",
             "deployment_item",
             "proposer",
             "proposer_detail",

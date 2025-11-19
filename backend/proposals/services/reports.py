@@ -26,12 +26,17 @@ def generate_term_report(proposals: Iterable[ImprovementProposal], term_number: 
     rows = []
     for proposal in proposals:
         approvals = {approval.stage: approval for approval in proposal.approvals.all()}
+        division_name = proposal.department.name if proposal.department else ""
+        section_name = proposal.section.name if proposal.section else ""
+        group_name = proposal.group.name if proposal.group else ""
+        team_name = proposal.team.name if proposal.team else ""
+        affiliation = " / ".join([n for n in [division_name, section_name, group_name, team_name] if n])
         rows.append(
             {
                 "管理No": proposal.management_no,
                 "提出日時": proposal.submitted_at.strftime("%Y-%m-%d %H:%M"),
                 "提案者": proposal.proposer_name,
-                "所属": proposal.affiliation,
+                "所属": affiliation,
                 "テーマ": proposal.deployment_item,
                 "削減時間[Hr/月]": proposal.reduction_hours or "",
                 "効果額[円/月]": proposal.effect_amount or "",

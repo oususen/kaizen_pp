@@ -1,10 +1,11 @@
 <script setup>
-import { reactive, ref, computed, onMounted } from 'vue'
-import { createProposal, fetchCurrentEmployee, fetchDepartments } from '../api/client'
+import { reactive, ref, computed, onMounted, watch } from 'vue'
+import { createProposal, fetchDepartments } from '../api/client'
+import { useAuth } from '../stores/auth'
 
 const departments = ref([])
 const contributorOptions = ref([])
-const employee = ref(null)
+const auth = useAuth()
 const loading = ref(false)
 const message = ref('')
 const success = ref('')
@@ -30,23 +31,22 @@ const effectAmount = computed(() => {
   return Math.round(hours * 1700)
 })
 
+const applyEmployeeDefaults = () => {
+  const info = auth.state.employee
+  form.proposer_name = info?.name ?? ''
+  form.proposer_email = info?.email ?? ''
+  form.affiliation = info?.position ?? info?.division ?? ''
+  if (info?.department) {
+    form.department = info.department
+  }
+}
+
 const loadMaster = async () => {
   try {
-    const [deptList, emp] = await Promise.all([
-      fetchDepartments(),
-      fetchCurrentEmployee(),
-    ])
+    const deptList = await fetchDepartments()
     departments.value = deptList
     contributorOptions.value = deptList
-    if (emp) {
-      employee.value = emp
-      form.proposer_name = emp.name ?? ''
-      form.proposer_email = emp.email ?? ''
-      form.affiliation = emp.position ?? emp.division ?? ''
-      if (emp.department) {
-        form.department = emp.department
-      }
-    }
+    applyEmployeeDefaults()
   } catch (error) {
     message.value = error.message ?? 'マスターデータの取得に失敗しました'
   }
@@ -54,10 +54,10 @@ const loadMaster = async () => {
 
 const resetForm = () => {
   Object.assign(form, {
-    department: employee.value?.department ?? '',
-    affiliation: employee.value?.position ?? '',
-    proposer_name: employee.value?.name ?? '',
-    proposer_email: employee.value?.email ?? '',
+    department: '',
+    affiliation: '',
+    proposer_name: '',
+    proposer_email: '',
     deployment_item: '',
     problem_summary: '',
     improvement_plan: '',
@@ -68,9 +68,14 @@ const resetForm = () => {
     before_image: null,
     after_image: null,
   })
+  applyEmployeeDefaults()
   success.value = ''
   message.value = ''
 }
+
+watch(() => auth.state.employee, () => {
+  applyEmployeeDefaults()
+}, { immediate: true })
 
 const handleFileChange = (event, field) => {
   const [file] = event.target.files ?? []
@@ -298,6 +303,14 @@ button:disabled {
   color: #166534;
 }
 </style>
+
+
+
+
+
+
+
+
 
 
 
