@@ -4,10 +4,38 @@
   font-weight: 400;
   color: #1f2933;
   background-color: #f4f6f8;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
 }
 
-#app {
-  min-height: 100vh;
+body {
+  margin: 0;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+button {
+  cursor: pointer;
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid #cbd5f5;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+}
+
+.alert {
+  border-radius: 8px;
+}
+
+.placeholder {
+  color: #6b7280;
 }

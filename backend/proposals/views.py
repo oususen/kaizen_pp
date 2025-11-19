@@ -1,11 +1,25 @@
-from django.utils import timezone
-from django.db.models import Q
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
+from __future__ import annotations
 
-from .models import Department, Proposal
-from .serializers import DepartmentSerializer, ProposalSerializer
+from datetime import datetime, time
+
+from django.db.models import Count, F, Q
+from django.http import HttpResponse
+from django.utils import timezone
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .models import Department, Employee, ImprovementProposal, ProposalApproval
+from .serializers import (
+    ApprovalActionSerializer,
+    DepartmentSerializer,
+    EmployeeSerializer,
+    ImprovementProposalSerializer,
+)
+from .services import fiscal
+from .services.reports import generate_term_report
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -13,58 +27,130 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentSerializer
 
 
-class ProposalViewSet(viewsets.ModelViewSet):
-    queryset = Proposal.objects.select_related("department").all()
-    serializer_class = ProposalSerializer
+class ImprovementProposalViewSet(viewsets.ModelViewSet):
+    serializer_class = ImprovementProposalSerializer
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        stage = self.request.query_params.get("stage")
-        status_value = self.request.query_params.get("status")
-        keyword = self.request.query_params.get("q")
+        queryset = (
+            ImprovementProposal.objects.select_related("department", "proposer", "created_by")
+            .prefetch_related("approvals__confirmed_by")
+            .annotate(
+                total_approvals=Count("approvals", distinct=True),
+                approved_count=Count(
+                    "approvals",
+                    filter=Q(approvals__status=ProposalApproval.Status.APPROVED),
+                    distinct=True,
+                ),
+            )
+            .order_by("-submitted_at")
+        )
+        params = self.request.query_params
+        stage = params.get("stage")
+        status_value = params.get("status")
+        keyword = params.get("q")
+        department_id = params.get("department")
+        term_value = params.get("term")
 
-        if stage in {"supervisor", "chief", "manager", "committee"} and status_value:
-            queryset = queryset.filter(**{f"{stage}_status": status_value})
+        if department_id:
+            queryset = queryset.filter(department_id=department_id)
 
         if keyword:
             queryset = queryset.filter(
-                Q(management_no__icontains=keyword) | Q(title__icontains=keyword)
+                Q(management_no__icontains=keyword)
+                | Q(proposer_name__icontains=keyword)
+                | Q(affiliation__icontains=keyword)
+                | Q(deployment_item__icontains=keyword)
             )
+
+        if term_value:
+            try:
+                term_number = int(term_value)
+                start_date, end_date = fiscal.term_date_range(term_number)
+                start_dt = datetime.combine(start_date, time.min)
+                end_dt = datetime.combine(end_date, time.max)
+                queryset = queryset.filter(submitted_at__range=(start_dt, end_dt))
+            except ValueError:
+                pass
+
+        stage_choices = dict(ProposalApproval.Stage.choices)
+        status_choices = dict(ProposalApproval.Status.choices)
+
+        if stage in stage_choices:
+            queryset = queryset.filter(approvals__stage=stage)
+            if status_value in status_choices:
+                queryset = queryset.filter(approvals__status=status_value)
+            queryset = queryset.distinct()
+        elif status_value == "completed":
+            queryset = queryset.filter(approved_count=F("total_approvals"))
 
         return queryset
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
-        """承認/差戻し操作を簡単に行うためのカスタムアクション."""
-
         proposal = self.get_object()
-        stage = request.data.get("stage")
-        status_value = request.data.get("status")
-        comment = request.data.get("comment", "")
-        score = request.data.get("score")
-        now = timezone.now()
+        serializer = ApprovalActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        stage = data["stage"]
+        approval = ProposalApproval.objects.filter(proposal=proposal, stage=stage).first()
+        if not approval:
+            return Response({"detail": "Invalid stage"}, status=status.HTTP_400_BAD_REQUEST)
+        approval.status = data["status"]
+        approval.comment = data.get("comment", "")
+        approval.confirmed_name = data["confirmed_name"]
+        approval.confirmed_at = timezone.now()
+        approval.confirmed_by = getattr(request.user, "employee_profile", None)
+        scores = data.get("scores") or {}
+        if stage in {ProposalApproval.Stage.MANAGER, ProposalApproval.Stage.COMMITTEE}:
+            approval.mindset_score = scores.get("mindset")
+            approval.idea_score = scores.get("idea")
+            approval.hint_score = scores.get("hint")
+        else:
+            approval.mindset_score = approval.idea_score = approval.hint_score = None
+        approval.save()
+        refreshed = self.get_serializer(proposal)
+        return Response(refreshed.data)
 
-        if stage not in {"supervisor", "chief", "manager", "committee"}:
-            return Response(
-                {"detail": "stage パラメータが不正です"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if status_value not in dict(Proposal.StageStatus.choices):
-            return Response(
-                {"detail": "status パラメータが不正です"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+    @action(detail=False, methods=["get"], url_path="export")
+    def export(self, request):
+        term_value = request.query_params.get("term")
+        if term_value is None:
+            return Response({"detail": "term parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            term_number = int(term_value)
+        except ValueError:
+            return Response({"detail": "term must be integer"}, status=status.HTTP_400_BAD_REQUEST)
+        start_date, end_date = fiscal.term_date_range(term_number)
+        start_dt = datetime.combine(start_date, time.min)
+        end_dt = datetime.combine(end_date, time.max)
+        proposals = (
+            ImprovementProposal.objects.filter(submitted_at__range=(start_dt, end_dt))
+            .select_related("department", "proposer")
+            .prefetch_related("approvals__confirmed_by")
+        )
+        buffer = generate_term_report(proposals, term_number)
+        filename = f"kaizen_term_{term_number}.xlsx"
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f"attachment; filename={filename}"
+        return response
 
-        setattr(proposal, f"{stage}_status", status_value)
-        setattr(proposal, f"{stage}_comment", comment)
-        setattr(proposal, f"{stage}_checked_at", now)
 
-        if stage == "manager" and status_value == Proposal.StageStatus.APPROVED:
-            scores = score or {}
-            proposal.manager_mindset_score = scores.get("mindset")
-            proposal.manager_idea_score = scores.get("idea")
-            proposal.manager_hint_score = scores.get("hint")
+class CurrentEmployeeView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        proposal.save()
-        serializer = self.get_serializer(proposal)
+    def get(self, request):
+        employee = getattr(request.user, "employee_profile", None)
+        if not employee:
+            return Response({"detail": "profile not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = EmployeeSerializer(employee)
         return Response(serializer.data)
+
+
+class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Employee.objects.select_related("department")
+    serializer_class = EmployeeSerializer
+    permission_classes = [AllowAny]
+
