@@ -170,6 +170,31 @@ class ImprovementProposal(models.Model):
         Department,
         on_delete=models.PROTECT,
         related_name="improvement_proposals",
+        limit_choices_to={"level": "division"},
+    )
+    section = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        related_name="improvement_section_proposals",
+        null=True,
+        blank=True,
+        limit_choices_to={"level": "section"},
+    )
+    group = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        related_name="improvement_group_proposals",
+        null=True,
+        blank=True,
+        limit_choices_to={"level": "group"},
+    )
+    team = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        related_name="improvement_team_proposals",
+        null=True,
+        blank=True,
+        limit_choices_to={"level": "team"},
     )
     deployment_item = models.CharField("展開項目", max_length=255, blank=True)
     proposer = models.ForeignKey(

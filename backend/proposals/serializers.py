@@ -130,6 +130,23 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    def validate(self, attrs):
+        errors = {}
+        current = self.instance or ImprovementProposal()
+
+        def check_level(value: Department | None, expected: str, field: str):
+            if value and value.level != expected:
+                errors[field] = f"{field} must be a {expected} level department"
+
+        check_level(attrs.get("department", getattr(current, "department", None)), "division", "department")
+        check_level(attrs.get("section", getattr(current, "section", None)), "section", "section")
+        check_level(attrs.get("group", getattr(current, "group", None)), "group", "group")
+        check_level(attrs.get("team", getattr(current, "team", None)), "team", "team")
+
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
     def create(self, validated_data):
         before_image = validated_data.pop("before_image", None)
         after_image = validated_data.pop("after_image", None)

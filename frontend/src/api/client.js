@@ -38,7 +38,20 @@ const request = async (path, options = {}) => {
   return handleResponse(response)
 }
 
-export const fetchDepartments = () => request('/departments/')
+export const fetchDepartments = async (params = {}) => {
+  const search = new URLSearchParams()
+  Object.entries({ page_size: 200, ...params }).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.append(key, value)
+    }
+  })
+  const query = search.toString()
+  const path = query ? `/departments/?${query}` : '/departments/'
+  const data = await request(path)
+  if (Array.isArray(data)) return data
+  if (data && Array.isArray(data.results)) return data.results
+  return []
+}
 
 export const fetchCurrentEmployee = async () => {
   try {

@@ -4,7 +4,6 @@ import { createProposal, fetchDepartments } from '../api/client'
 import { useAuth } from '../stores/auth'
 
 const departments = ref([])
-const contributorOptions = ref([])
 const auth = useAuth()
 const loading = ref(false)
 const message = ref('')
@@ -12,7 +11,8 @@ const success = ref('')
 
 const form = reactive({
   department: '',
-  affiliation: '',
+  group: '',
+  team: '',
   proposer_name: '',
   proposer_email: '',
   deployment_item: '',
@@ -26,26 +26,72 @@ const form = reactive({
   after_image: null,
 })
 
+const toId = (value) => (value === null || value === undefined ? '' : String(value))
+
+const parentMap = computed(() => {
+  const map = new Map()
+  departments.value.forEach((dept) => {
+    map.set(toId(dept.id), toId(dept.parent))
+  })
+  return map
+})
+
+const isDescendantOf = (childId, ancestorId) => {
+  let cursor = toId(childId)
+  const target = toId(ancestorId)
+  if (!cursor || !target) return false
+  const seen = new Set()
+  while (cursor && !seen.has(cursor)) {
+    seen.add(cursor)
+    const parent = parentMap.value.get(cursor)
+    if (!parent) return false
+    if (parent === target) return true
+    cursor = parent
+  }
+  return false
+}
+
+const divisionOptions = computed(() => departments.value.filter((dept) => dept.level === 'division'))
+const groupOptions = computed(() => departments.value.filter((dept) => dept.level === 'group'))
+const teamOptions = computed(() => departments.value.filter((dept) => dept.level === 'team'))
+const filteredGroupOptions = computed(() =>
+  groupOptions.value.filter((dept) => isDescendantOf(dept.id, form.department)),
+)
+const filteredTeamOptions = computed(() =>
+  teamOptions.value.filter((dept) => isDescendantOf(dept.id, form.group)),
+)
+const contributorOptions = computed(() => departments.value)
+
 const effectAmount = computed(() => {
   const hours = Number(form.reduction_hours) || 0
   return Math.round(hours * 1700)
 })
 
+const findDepartmentId = (name, level) => {
+  if (!name) return ''
+  const match = departments.value.find((dept) => dept.level === level && dept.name === name)
+  return toId(match?.id)
+}
+
 const applyEmployeeDefaults = () => {
   const info = auth.state.employee
   form.proposer_name = info?.name ?? ''
   form.proposer_email = info?.email ?? ''
-  form.affiliation = info?.position ?? info?.division ?? ''
-  if (info?.department) {
-    form.department = info.department
+  form.department = toId(info?.department ?? form.department)
+  if (!form.department) {
+    const divisionId = findDepartmentId(info?.division, 'division')
+    if (divisionId) {
+      form.department = divisionId
+    }
   }
+  form.group = findDepartmentId(info?.group, 'group')
+  form.team = findDepartmentId(info?.team, 'team')
 }
 
 const loadMaster = async () => {
   try {
     const deptList = await fetchDepartments()
     departments.value = deptList
-    contributorOptions.value = deptList
     applyEmployeeDefaults()
   } catch (error) {
     message.value = error.message ?? 'マスターデータの取得に失敗しました'
@@ -55,7 +101,8 @@ const loadMaster = async () => {
 const resetForm = () => {
   Object.assign(form, {
     department: '',
-    affiliation: '',
+    group: '',
+    team: '',
     proposer_name: '',
     proposer_email: '',
     deployment_item: '',
@@ -77,6 +124,19 @@ watch(() => auth.state.employee, () => {
   applyEmployeeDefaults()
 }, { immediate: true })
 
+watch(() => form.department, () => {
+  if (!filteredGroupOptions.value.some((dept) => dept.id === form.group)) {
+    form.group = ''
+  }
+  form.team = ''
+})
+
+watch(() => form.group, () => {
+  if (!filteredTeamOptions.value.some((dept) => dept.id === form.team)) {
+    form.team = ''
+  }
+})
+
 const handleFileChange = (event, field) => {
   const [file] = event.target.files ?? []
   form[field] = file || null
@@ -85,7 +145,7 @@ const handleFileChange = (event, field) => {
 const submitProposal = async () => {
   message.value = ''
   success.value = ''
-  if (!form.department || !form.proposer_name || !form.deployment_item || !form.problem_summary || !form.improvement_plan) {
+  if (!form.department || !form.group || !form.team || !form.proposer_name || !form.deployment_item || !form.problem_summary || !form.improvement_plan) {
     message.value = '必須項目を入力してください'
     return
   }
@@ -93,7 +153,8 @@ const submitProposal = async () => {
   try {
     await createProposal({
       department: form.department,
-      affiliation: form.affiliation,
+      group: form.group,
+      team: form.team,
       proposer_name: form.proposer_name,
       proposer_email: form.proposer_email,
       deployment_item: form.deployment_item,
@@ -141,16 +202,32 @@ onMounted(() => {
         部門*
         <select v-model="form.department" required>
           <option value="" disabled>選択してください</option>
-          <option v-for="dept in departments" :key="dept.id" :value="dept.id">
+          <option v-for="dept in divisionOptions" :key="dept.id" :value="toId(dept.id)">
             {{ dept.name }}
           </option>
         </select>
       </label>
 
       <label>
-        所属/担当*
-        <input v-model="form.affiliation" type="text" required />
+        係*
+        <select v-model="form.group" required>
+          <option value="" disabled>選択してください</option>
+          <option v-for="dept in filteredGroupOptions" :key="dept.id" :value="toId(dept.id)">
+            {{ dept.name }}
+          </option>
+        </select>
       </label>
+
+      <label>
+        班*
+        <select v-model="form.team" required>
+          <option value="" disabled>選択してください</option>
+          <option v-for="dept in filteredTeamOptions" :key="dept.id" :value="toId(dept.id)">
+            {{ dept.name }}
+          </option>
+        </select>
+      </label>
+
 
       <label>
         提案者*

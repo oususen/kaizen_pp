@@ -28,11 +28,13 @@ class ImprovementProposalAdmin(admin.ModelAdmin):
         "management_no",
         "proposer_name",
         "department",
+        "group",
+        "team",
         "submitted_at",
     )
-    list_filter = ("department", "submitted_at")
+    list_filter = ("department", "group", "team", "submitted_at")
     search_fields = ("management_no", "proposer_name", "deployment_item")
-    autocomplete_fields = ("department", "proposer")
+    autocomplete_fields = ("department", "section", "group", "team", "proposer")
 
 
 @admin.register(ProposalApproval)

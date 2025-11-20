@@ -26,8 +26,16 @@ from .services.reports import generate_term_report
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all()
+    queryset = Department.objects.select_related("parent")
     serializer_class = DepartmentSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        level = self.request.query_params.get("level")
+        if level:
+            queryset = queryset.filter(level=level)
+        return queryset
 
 
 class ImprovementProposalViewSet(viewsets.ModelViewSet):
@@ -35,7 +43,9 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = (
-            ImprovementProposal.objects.select_related("department", "proposer", "created_by")
+            ImprovementProposal.objects.select_related(
+                "department", "section", "group", "team", "proposer", "created_by"
+            )
             .prefetch_related("approvals__confirmed_by")
             .annotate(
                 total_approvals=Count("approvals", distinct=True),
