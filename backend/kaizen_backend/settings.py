@@ -172,6 +172,11 @@ CSRF_TRUSTED_ORIGINS = [
     "http://10.0.1.194:5000",
 ]
 
+# CSRF Cookie設定
+CSRF_COOKIE_HTTPONLY = False  # JavaScriptからCSRFトークンを読めるようにする
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = False  # 開発環境ではFalse (本番環境ではTrue)
+
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",

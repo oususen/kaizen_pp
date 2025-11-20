@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime
+
 from django.db.models import F
 from django.utils import timezone
 
@@ -8,7 +10,7 @@ from proposals.models import ImprovementProposal
 
 def generate_management_no() -> str:
     """Generate a unique management number yyyyMMdd-XXX."""
-    today = timezone.localdate()
+    today = datetime.date.today()
     prefix = today.strftime("%Y%m%d")
     existing = (
         ImprovementProposal.objects.filter(management_no__startswith=f"{prefix}-")

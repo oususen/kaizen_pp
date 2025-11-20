@@ -5,6 +5,18 @@ const buildUrl = (path) => {
   return `${API_BASE}/${normalized}`
 }
 
+const getCsrfToken = () => {
+  const name = 'csrftoken'
+  const cookies = document.cookie.split(';')
+  for (let cookie of cookies) {
+    const trimmed = cookie.trim()
+    if (trimmed.startsWith(name + '=')) {
+      return trimmed.substring(name.length + 1)
+    }
+  }
+  return null
+}
+
 const handleResponse = async (response) => {
   if (response.status === 204) {
     return null
@@ -20,6 +32,15 @@ const request = async (path, options = {}) => {
   const config = { credentials: 'include', ...options }
   const isFormData = config.body instanceof FormData
   config.headers = config.headers ?? {}
+
+  // Add CSRF token for non-GET requests
+  if (config.method && config.method !== 'GET') {
+    const csrfToken = getCsrfToken()
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken
+    }
+  }
+
   if (!isFormData && config.body && !(config.body instanceof Blob)) {
     config.headers['Content-Type'] = 'application/json'
     config.body = typeof config.body === 'string' ? config.body : JSON.stringify(config.body)

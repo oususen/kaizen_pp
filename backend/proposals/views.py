@@ -165,6 +165,7 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Employee.objects.select_related("department")
     serializer_class = EmployeeSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -175,7 +176,19 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
             try:
                 selected_dept = Department.objects.get(id=department_id)
                 descendant_ids = self._get_descendant_ids(selected_dept)
-                queryset = queryset.filter(department_id__in=descendant_ids)
+
+                # Get department names for filtering CharField columns
+                dept_names = list(Department.objects.filter(id__in=descendant_ids).values_list('name', flat=True))
+
+                # Filter by the most specific affiliation (priority: team > group > department)
+                queryset = queryset.filter(
+                    # 1. If team has value, filter by team
+                    (~Q(team='') & Q(team__in=dept_names)) |
+                    # 2. If team is empty but group has value, filter by group
+                    (Q(team='') & ~Q(group='') & Q(group__in=dept_names)) |
+                    # 3. If both team and group are empty, filter by department
+                    (Q(team='') & Q(group='') & Q(department_id__in=descendant_ids))
+                )
             except Department.DoesNotExist:
                 queryset = queryset.none()
 
