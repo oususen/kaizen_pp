@@ -59,6 +59,16 @@ const filteredTeamOptions = computed(() =>
   teamOptions.value.filter((dept) => isDescendantOf(dept.id, form.group)),
 )
 const contributorOptions = computed(() => departments.value)
+const effectDepartmentOptions = computed(() => 
+  departments.value
+    .filter((dept) => dept.level === 'division' || dept.level === 'section')
+    .sort((a, b) => {
+      // Sort by display_id first, then by name
+      const idDiff = (a.display_id || 0) - (b.display_id || 0)
+      if (idDiff !== 0) return idDiff
+      return a.name.localeCompare(b.name)
+    })
+)
 
 const effectAmount = computed(() => {
   const hours = Number(form.reduction_hours) || 0
@@ -294,7 +304,7 @@ onMounted(() => {
       <label>
         効果部門
         <select v-model="form.contribution_business" multiple>
-          <option v-for="dept in contributorOptions" :key="dept.id" :value="dept.name">
+          <option v-for="dept in effectDepartmentOptions" :key="dept.id" :value="dept.name">
             {{ dept.name }}
           </option>
         </select>

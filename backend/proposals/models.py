@@ -15,6 +15,7 @@ class Department(models.Model):
 
     name = models.CharField(max_length=100)
     level = models.CharField(max_length=20, choices=LEVEL_CHOICES)
+    display_id = models.IntegerField("表示順", default=0, help_text="小さい値ほど上に表示されます")
     parent = models.ForeignKey(
         "self",
         null=True,
@@ -25,7 +26,7 @@ class Department(models.Model):
 
     class Meta:
         unique_together = ("name", "level")
-        ordering = ["level", "name"]
+        ordering = ["display_id", "name"]
 
     def __str__(self) -> str:
         prefix = dict(self.LEVEL_CHOICES).get(self.level, "")

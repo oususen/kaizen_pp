@@ -21,7 +21,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Department
-        fields = ["id", "name", "level", "parent", "parent_name"]
+        fields = ["id", "name", "level", "display_id", "parent", "parent_name"]
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
