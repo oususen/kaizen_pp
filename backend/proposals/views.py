@@ -166,6 +166,29 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = EmployeeSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        department_id = self.request.query_params.get("department")
+
+        if department_id:
+            # Get all descendant departments of the selected department
+            try:
+                selected_dept = Department.objects.get(id=department_id)
+                descendant_ids = self._get_descendant_ids(selected_dept)
+                queryset = queryset.filter(department_id__in=descendant_ids)
+            except Department.DoesNotExist:
+                queryset = queryset.none()
+
+        return queryset.filter(is_active=True)
+
+    def _get_descendant_ids(self, department):
+        """Get all descendant department IDs including the department itself."""
+        ids = {department.id}
+        children = Department.objects.filter(parent=department)
+        for child in children:
+            ids.update(self._get_descendant_ids(child))
+        return ids
+
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):

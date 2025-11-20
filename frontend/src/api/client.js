@@ -123,5 +123,18 @@ export const logoutUser = () =>
   request('/auth/logout/', {
     method: 'POST',
   })
-export const fetchEmployees = () => request('/employees/')
+export const fetchEmployees = async (params = {}) => {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.append(key, value)
+    }
+  })
+  const query = search.toString()
+  const path = query ? `/employees/?${query}` : '/employees/'
+  const data = await request(path)
+  if (Array.isArray(data)) return data
+  if (data && Array.isArray(data.results)) return data.results
+  return []
+}
 

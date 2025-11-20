@@ -1,8 +1,9 @@
 <script setup>
 import { reactive, ref, computed, onMounted, watch } from 'vue'
-import { createProposal, fetchDepartments } from '../api/client'
+import { createProposal, fetchDepartments, fetchEmployees } from '../api/client'
 
 const departments = ref([])
+const employees = ref([])
 const loading = ref(false)
 const message = ref('')
 const success = ref('')
@@ -12,7 +13,6 @@ const form = reactive({
   group: '',
   team: '',
   proposer_name: '',
-  proposer_email: '',
   deployment_item: '',
   problem_summary: '',
   improvement_plan: '',
@@ -67,10 +67,18 @@ const effectAmount = computed(() => {
 
 const loadMaster = async () => {
   try {
-    const deptList = await fetchDepartments()
-    departments.value = deptList
+    departments.value = await fetchDepartments()
   } catch (error) {
     message.value = error.message ?? 'マスターデータの取得に失敗しました'
+  }
+}
+
+const loadEmployees = async (departmentId = null) => {
+  try {
+    const params = departmentId ? { department: departmentId } : {}
+    employees.value = await fetchEmployees(params)
+  } catch (error) {
+    message.value = error.message ?? '従業員データの取得に失敗しました'
   }
 }
 
@@ -79,6 +87,7 @@ const resetForm = () => {
     department: '',
     group: '',
     team: '',
+    proposer: '',
     proposer_name: '',
     proposer_email: '',
     deployment_item: '',
@@ -91,20 +100,61 @@ const resetForm = () => {
     before_image: null,
     after_image: null,
   })
+  employees.value = []
   success.value = ''
   message.value = ''
 }
 
-watch(() => form.department, () => {
+// 提案者選択時に名前とメールアドレスを自動入力
+watch(() => form.proposer, (proposerId) => {
+  if (proposerId) {
+    const employee = employees.value.find(emp => String(emp.id) === String(proposerId))
+    if (employee) {
+      form.proposer_name = employee.name
+      form.proposer_email = employee.email || ''
+    }
+  }
+})
+
+watch(() => form.department, (newDepartment) => {
   if (!filteredGroupOptions.value.some((dept) => toId(dept.id) === toId(form.group))) {
     form.group = ''
   }
   form.team = ''
+  form.proposer = ''
+
+  // 部門が選択されたら、その部門に所属する従業員を読み込む
+  if (newDepartment) {
+    loadEmployees(newDepartment)
+  } else {
+    employees.value = []
+  }
 })
 
-watch(() => form.group, () => {
+watch(() => form.group, (newGroup) => {
   if (!filteredTeamOptions.value.some((dept) => toId(dept.id) === toId(form.team))) {
     form.team = ''
+  }
+  form.proposer = ''
+
+  // 係が選択されたら、その係に所属する従業員に絞り込む
+  if (newGroup) {
+    loadEmployees(newGroup)
+  } else if (form.department) {
+    loadEmployees(form.department)
+  }
+})
+
+watch(() => form.team, (newTeam) => {
+  form.proposer = ''
+
+  // 班が選択されたら、その班に所属する従業員に絞り込む
+  if (newTeam) {
+    loadEmployees(newTeam)
+  } else if (form.group) {
+    loadEmployees(form.group)
+  } else if (form.department) {
+    loadEmployees(form.department)
   }
 })
 
@@ -116,7 +166,7 @@ const handleFileChange = (event, field) => {
 const submitProposal = async () => {
   message.value = ''
   success.value = ''
-  if (!form.department || !form.group || !form.team || !form.proposer_name || !form.deployment_item || !form.problem_summary || !form.improvement_plan) {
+  if (!form.department || !form.proposer || !form.deployment_item || !form.problem_summary || !form.improvement_plan) {
     message.value = '必須項目を入力してください'
     return
   }
@@ -126,6 +176,7 @@ const submitProposal = async () => {
       department: form.department,
       group: form.group,
       team: form.team,
+      proposer: form.proposer,
       proposer_name: form.proposer_name,
       proposer_email: form.proposer_email,
       deployment_item: form.deployment_item,
@@ -180,9 +231,9 @@ onMounted(() => {
       </label>
 
       <label>
-        係*
-        <select v-model="form.group" required>
-          <option value="" disabled>選択してください</option>
+        係
+        <select v-model="form.group">
+          <option value="">選択してください</option>
           <option v-for="dept in filteredGroupOptions" :key="dept.id" :value="toId(dept.id)">
             {{ dept.name }}
           </option>
@@ -190,9 +241,9 @@ onMounted(() => {
       </label>
 
       <label>
-        班*
-        <select v-model="form.team" required>
-          <option value="" disabled>選択してください</option>
+        班
+        <select v-model="form.team">
+          <option value="">選択してください</option>
           <option v-for="dept in filteredTeamOptions" :key="dept.id" :value="toId(dept.id)">
             {{ dept.name }}
           </option>
@@ -202,12 +253,17 @@ onMounted(() => {
 
       <label>
         提案者*
-        <input v-model="form.proposer_name" type="text" required />
+        <select v-model="form.proposer" required>
+          <option value="" disabled>選択してください</option>
+          <option v-for="emp in employees" :key="emp.id" :value="toId(emp.id)">
+            {{ emp.name }} ({{ emp.code }})
+          </option>
+        </select>
       </label>
 
       <label>
-        メールアドレス
-        <input v-model="form.proposer_email" type="email" />
+        提案者名
+        <input v-model="form.proposer_name" type="text" readonly />
       </label>
 
       <label class="span">
