@@ -40,6 +40,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
 class ImprovementProposalViewSet(viewsets.ModelViewSet):
     serializer_class = ImprovementProposalSerializer
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         queryset = (

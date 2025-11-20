@@ -80,6 +80,10 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
     is_completed = serializers.SerializerMethodField()
     term = serializers.SerializerMethodField()
     quarter = serializers.SerializerMethodField()
+    supervisor_status = serializers.SerializerMethodField()
+    chief_status = serializers.SerializerMethodField()
+    manager_status = serializers.SerializerMethodField()
+    committee_status = serializers.SerializerMethodField()
 
     class Meta:
         model = ImprovementProposal
@@ -120,6 +124,10 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "is_completed",
             "term",
             "quarter",
+            "supervisor_status",
+            "chief_status",
+            "manager_status",
+            "committee_status",
         ]
         read_only_fields = (
             "management_no",
@@ -212,6 +220,26 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
 
     def get_quarter(self, obj: ImprovementProposal) -> int:
         return fiscal.fiscal_quarter(obj.submitted_at)
+
+    def get_supervisor_status(self, obj: ImprovementProposal) -> str:
+        approvals = self._get_approvals(obj)
+        approval = next((a for a in approvals if a.stage == ProposalApproval.Stage.SUPERVISOR), None)
+        return approval.status if approval else ProposalApproval.Status.PENDING
+
+    def get_chief_status(self, obj: ImprovementProposal) -> str:
+        approvals = self._get_approvals(obj)
+        approval = next((a for a in approvals if a.stage == ProposalApproval.Stage.CHIEF), None)
+        return approval.status if approval else ProposalApproval.Status.PENDING
+
+    def get_manager_status(self, obj: ImprovementProposal) -> str:
+        approvals = self._get_approvals(obj)
+        approval = next((a for a in approvals if a.stage == ProposalApproval.Stage.MANAGER), None)
+        return approval.status if approval else ProposalApproval.Status.PENDING
+
+    def get_committee_status(self, obj: ImprovementProposal) -> str:
+        approvals = self._get_approvals(obj)
+        approval = next((a for a in approvals if a.stage == ProposalApproval.Stage.COMMITTEE), None)
+        return approval.status if approval else ProposalApproval.Status.PENDING
 
 
 class ApprovalActionSerializer(serializers.Serializer):
