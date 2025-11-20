@@ -1,0 +1,132 @@
+{% extends "admin/change_form.html" %}
+
+{% block admin_change_form_document_ready %}
+{{ block.super }}
+<script>
+(function($) {
+    'use strict';
+    console.log('カスタムテンプレートが読み込まれました');
+
+    var allGroups = {};
+    var allTeams = {};
+    var deptData = {};
+
+    // 部門データを取得
+    function loadDepartments() {
+        $.ajax({
+            url: '/api/departments/?page_size=200',
+            method: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                var departments = Array.isArray(data) ? data : (data.results || []);
+
+                departments.forEach(function(dept) {
+                    deptData[dept.id] = dept;
+                });
+
+                // 現在の選択肢を保存
+                $('#id_group_dept option').each(function() {
+                    var val = $(this).val();
+                    if (val) {
+                        var dept = deptData[val];
+                        allGroups[val] = {
+                            text: $(this).text(),
+                            parent: dept ? dept.parent : null
+                        };
+                    }
+                });
+
+                $('#id_team_dept option').each(function() {
+                    var val = $(this).val();
+                    if (val) {
+                        var dept = deptData[val];
+                        allTeams[val] = {
+                            text: $(this).text(),
+                            parent: dept ? dept.parent : null
+                        };
+                    }
+                });
+
+                // 初期フィルタを適用
+                filterGroups();
+                filterTeams();
+            },
+            error: function() {
+                console.log('部門データの読み込みに失敗しました');
+            }
+        });
+    }
+
+    function filterGroups() {
+        var divisionId = $('#id_division_dept').val();
+        var currentValue = $('#id_group_dept').val();
+
+        var $groupSelect = $('#id_group_dept');
+        var firstOption = $groupSelect.find('option:first');
+
+        $groupSelect.empty().append(firstOption);
+
+        if (divisionId) {
+            $.each(allGroups, function(id, group) {
+                if (String(group.parent) === String(divisionId)) {
+                    $groupSelect.append($('<option></option>').val(id).text(group.text));
+                }
+            });
+
+            if ($groupSelect.find('option[value="' + currentValue + '"]').length > 0) {
+                $groupSelect.val(currentValue);
+            } else {
+                $groupSelect.val('');
+            }
+        } else {
+            $.each(allGroups, function(id, group) {
+                $groupSelect.append($('<option></option>').val(id).text(group.text));
+            });
+            $groupSelect.val(currentValue);
+        }
+    }
+
+    function filterTeams() {
+        var groupId = $('#id_group_dept').val();
+        var currentValue = $('#id_team_dept').val();
+
+        var $teamSelect = $('#id_team_dept');
+        var firstOption = $teamSelect.find('option:first');
+
+        $teamSelect.empty().append(firstOption);
+
+        if (groupId) {
+            $.each(allTeams, function(id, team) {
+                if (String(team.parent) === String(groupId)) {
+                    $teamSelect.append($('<option></option>').val(id).text(team.text));
+                }
+            });
+
+            if ($teamSelect.find('option[value="' + currentValue + '"]').length > 0) {
+                $teamSelect.val(currentValue);
+            } else {
+                $teamSelect.val('');
+            }
+        } else {
+            $.each(allTeams, function(id, team) {
+                $teamSelect.append($('<option></option>').val(id).text(team.text));
+            });
+            $teamSelect.val(currentValue);
+        }
+    }
+
+    // イベントハンドラを設定
+    $('#id_division_dept').on('change', function() {
+        filterGroups();
+        filterTeams();
+    });
+
+    $('#id_group_dept').on('change', function() {
+        filterTeams();
+    });
+
+    // データをロード
+    loadDepartments();
+})(django.jQuery);
+</script>
+{% endblock %}

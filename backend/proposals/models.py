@@ -128,7 +128,7 @@ class Employee(models.Model):
 
     class Role(models.TextChoices):
         STAFF = "staff", "従業員"
-        SUPERVISOR = "supervisor", "監督者"
+        SUPERVISOR = "supervisor", "班長"
         CHIEF = "chief", "係長"
         MANAGER = "manager", "部門長"
         COMMITTEE = "committee", "改善委員"
