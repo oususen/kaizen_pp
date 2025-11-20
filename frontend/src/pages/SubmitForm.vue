@@ -1,10 +1,8 @@
 <script setup>
 import { reactive, ref, computed, onMounted, watch } from 'vue'
 import { createProposal, fetchDepartments } from '../api/client'
-import { useAuth } from '../stores/auth'
 
 const departments = ref([])
-const auth = useAuth()
 const loading = ref(false)
 const message = ref('')
 const success = ref('')
@@ -67,32 +65,10 @@ const effectAmount = computed(() => {
   return Math.round(hours * 1700)
 })
 
-const findDepartmentId = (name, level) => {
-  if (!name) return ''
-  const match = departments.value.find((dept) => dept.level === level && dept.name === name)
-  return toId(match?.id)
-}
-
-const applyEmployeeDefaults = () => {
-  const info = auth.state.employee
-  form.proposer_name = info?.name ?? ''
-  form.proposer_email = info?.email ?? ''
-  form.department = toId(info?.department ?? form.department)
-  if (!form.department) {
-    const divisionId = findDepartmentId(info?.division, 'division')
-    if (divisionId) {
-      form.department = divisionId
-    }
-  }
-  form.group = findDepartmentId(info?.group, 'group')
-  form.team = findDepartmentId(info?.team, 'team')
-}
-
 const loadMaster = async () => {
   try {
     const deptList = await fetchDepartments()
     departments.value = deptList
-    applyEmployeeDefaults()
   } catch (error) {
     message.value = error.message ?? 'マスターデータの取得に失敗しました'
   }
@@ -115,24 +91,19 @@ const resetForm = () => {
     before_image: null,
     after_image: null,
   })
-  applyEmployeeDefaults()
   success.value = ''
   message.value = ''
 }
 
-watch(() => auth.state.employee, () => {
-  applyEmployeeDefaults()
-}, { immediate: true })
-
 watch(() => form.department, () => {
-  if (!filteredGroupOptions.value.some((dept) => dept.id === form.group)) {
+  if (!filteredGroupOptions.value.some((dept) => toId(dept.id) === toId(form.group))) {
     form.group = ''
   }
   form.team = ''
 })
 
 watch(() => form.group, () => {
-  if (!filteredTeamOptions.value.some((dept) => dept.id === form.team)) {
+  if (!filteredTeamOptions.value.some((dept) => toId(dept.id) === toId(form.team))) {
     form.team = ''
   }
 })

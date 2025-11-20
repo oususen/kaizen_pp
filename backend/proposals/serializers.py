@@ -153,10 +153,6 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and request.user.is_authenticated:
             validated_data.setdefault("created_by", request.user)
-            employee = getattr(request.user, "employee_profile", None)
-            if employee and not validated_data.get("proposer"):
-                validated_data["proposer"] = employee
-                validated_data.setdefault("proposer_name", employee.name)
         if not validated_data.get("management_no"):
             validated_data["management_no"] = generate_management_no()
         if not validated_data.get("submitted_at"):
