@@ -29,7 +29,12 @@ const form = reactive({
 
 const needsScore = (stage) => ['manager', 'committee'].includes(stage)
 
-const formatDate = (value) => (value ? new Date(value).toLocaleString('ja-JP') : '')
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('ja-JP') : '')
+
+const stageApproval = (stage) => {
+  const approvals = selectedProposal.value?.approvals || []
+  return approvals.find((a) => a.stage === stage)
+}
 
 const orderedStages = ['supervisor', 'chief', 'manager', 'committee']
 
@@ -360,6 +365,52 @@ onMounted(() => {
               </div>
             </div>
           </div>
+
+          <div class="detail-section">
+            <h3>承認状況</h3>
+            <div class="approvals-grid">
+              <div class="approval-item">
+                <label>班長</label>
+                <span :class="['badge', 'badge-' + (selectedProposal.supervisor_status || 'pending')]">
+                  {{ selectedProposal.supervisor_status === 'approved' ? '承認' : selectedProposal.supervisor_status === 'rejected' ? '差戻し' : '未確認' }}
+                </span>
+                <div v-if="stageApproval('supervisor')" class="approval-info">
+                  <small>承認者: {{ stageApproval('supervisor').confirmed_name || '-' }}</small>
+                  <small>日時: {{ formatDate(stageApproval('supervisor').confirmed_at) }}</small>
+                </div>
+              </div>
+              <div class="approval-item">
+                <label>係長</label>
+                <span :class="['badge', 'badge-' + (selectedProposal.chief_status || 'pending')]">
+                  {{ selectedProposal.chief_status === 'approved' ? '承認' : selectedProposal.chief_status === 'rejected' ? '差戻し' : '未確認' }}
+                </span>
+                <div v-if="stageApproval('chief')" class="approval-info">
+                  <small>承認者: {{ stageApproval('chief').confirmed_name || '-' }}</small>
+                  <small>日時: {{ formatDate(stageApproval('chief').confirmed_at) }}</small>
+                </div>
+              </div>
+              <div class="approval-item">
+                <label>課長/部長</label>
+                <span :class="['badge', 'badge-' + (selectedProposal.manager_status || 'pending')]">
+                  {{ selectedProposal.manager_status === 'approved' ? '承認' : selectedProposal.manager_status === 'rejected' ? '差戻し' : '未確認' }}
+                </span>
+                <div v-if="stageApproval('manager')" class="approval-info">
+                  <small>承認者: {{ stageApproval('manager').confirmed_name || '-' }}</small>
+                  <small>日時: {{ formatDate(stageApproval('manager').confirmed_at) }}</small>
+                </div>
+              </div>
+              <div class="approval-item">
+                <label>改善委員</label>
+                <span :class="['badge', 'badge-' + (selectedProposal.committee_status || 'pending')]">
+                  {{ selectedProposal.committee_status === 'approved' ? '承認' : selectedProposal.committee_status === 'rejected' ? '差戻し' : '未確認' }}
+                </span>
+                <div v-if="stageApproval('committee')" class="approval-info">
+                  <small>承認者: {{ stageApproval('committee').confirmed_name || '-' }}</small>
+                  <small>日時: {{ formatDate(stageApproval('committee').confirmed_at) }}</small>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -681,6 +732,59 @@ onMounted(() => {
   width: 100%;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
+}
+
+.approvals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.approval-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.approval-item label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.approval-item .badge {
+  text-align: center;
+}
+
+.badge-approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.approval-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.approval-info small {
+  font-size: 0.75rem;
+  color: #6b7280;
 }
 
 .no-selection {

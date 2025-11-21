@@ -36,7 +36,7 @@ const stageApproval = (stage) => {
   return approvals.find((a) => a.stage === stage)
 }
 
-const formatDate = (value) => (value ? new Date(value).toLocaleString('ja-JP') : '')
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('ja-JP') : '')
 
 const statusBadgeClass = (status) => {
   if (status === 'approved') return 'badge-success'
