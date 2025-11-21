@@ -21,6 +21,7 @@ const resources = [
   { key: 'reports', label: 'レポート' },
   { key: 'analytics', label: '分析・レポート' },
   { key: 'permissions', label: '権限設定' },
+  { key: 'user_management', label: 'ユーザー管理' },
 ]
 
 const loadData = async () => {
@@ -143,7 +144,7 @@ onMounted(loadData)
               <td class="checkbox-cell">
                 <input
                   type="checkbox"
-                  :checked="getPermission(user.id, res.key)?.can_view ?? true"
+                  :checked="getPermission(user.id, res.key)?.can_view ?? false"
                   @change="togglePermission(user.id, res.key, 'can_view')"
                   :disabled="!canEditPermissions"
                 />
@@ -151,7 +152,7 @@ onMounted(loadData)
               <td class="checkbox-cell">
                 <input
                   type="checkbox"
-                  :checked="getPermission(user.id, res.key)?.can_edit ?? true"
+                  :checked="getPermission(user.id, res.key)?.can_edit ?? false"
                   @change="togglePermission(user.id, res.key, 'can_edit')"
                   :disabled="!canEditPermissions"
                 />

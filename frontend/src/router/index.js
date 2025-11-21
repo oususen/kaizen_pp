@@ -11,7 +11,7 @@ import LoginPage from '../pages/LoginPage.vue'
 import { useAuth } from '../stores/auth'
 
 const routes = [
-  { path: '/', redirect: '/submit' },
+  { path: '/', component: SubmitForm, meta: { title: '提出フォーム' } },
   { path: '/login', component: LoginPage, meta: { requiresAuth: false, title: 'ログイン' } },
   { path: '/submit', component: SubmitForm, meta: { title: '提出フォーム' } },
   { path: '/proposals', component: ProposalList, meta: { title: '提出済み一覧' } },
@@ -45,6 +45,7 @@ router.beforeEach(async (to, from, next) => {
 
   // Permission-based access control
   const resourceMap = {
+    '/': 'submit',
     '/submit': 'submit',
     '/proposals': 'proposals',
     '/approvals': 'approvals',
@@ -55,9 +56,17 @@ router.beforeEach(async (to, from, next) => {
     '/users': 'user_management',
   }
 
+  const firstAllowedPath = () => {
+    return Object.entries(resourceMap).find(([, res]) => auth.canView(res))?.[0] || '/login'
+  }
+
   const resource = resourceMap[to.path]
   if (resource && !auth.canView(resource)) {
-    return next('/submit')
+    return next(firstAllowedPath())
+  }
+
+  if (to.path === '/') {
+    return next(firstAllowedPath())
   }
 
   return next()

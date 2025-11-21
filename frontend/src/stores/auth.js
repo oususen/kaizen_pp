@@ -80,14 +80,17 @@ const logout = async () => {
   }
 }
 
+const defaultViewAllow = new Set(['submit', 'proposals'])
+
 const canView = (resource) => {
   const perm = state.permissions.find((p) => p.resource === resource)
-  return perm ? perm.can_view : true // Default to true if no permission set
+  if (perm) return perm.can_view
+  return defaultViewAllow.has(resource)
 }
 
 const canEdit = (resource) => {
   const perm = state.permissions.find((p) => p.resource === resource)
-  return perm ? perm.can_edit : true // Default to true if no permission set
+  return perm ? perm.can_edit : false // Default edit is閉じる
 }
 
 export const useAuth = () => ({

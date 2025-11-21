@@ -42,6 +42,10 @@ export function usePermissions() {
       canView: canView('permissions'),
       canEdit: canEdit('permissions'),
     },
+    user_management: {
+      canView: canView('user_management'),
+      canEdit: canEdit('user_management'),
+    },
   }))
 
   return {
