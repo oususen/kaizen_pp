@@ -73,6 +73,14 @@ const lowerStagesApproved = (proposal) => {
   return required.every((stage) => approvals.find((a) => a.stage === stage)?.status === 'approved')
 }
 
+const isCurrentStageApproved = (proposal) => {
+  const current = selectedStage.value
+  if (!current) return false
+  const approvals = Array.isArray(proposal.approvals) ? proposal.approvals : []
+  const approval = approvals.find((a) => a.stage === current)
+  return approval?.status === 'approved'
+}
+
 const ensureStage = () => {
   if (visibleStages.value.length === 0) {
     selectedStage.value = null
@@ -93,26 +101,32 @@ const filteredProposals = computed(() => {
 
   // システム管理者は全ての提案を閲覧可能
   if (role === 'admin') {
-    return proposals.value.filter((p) => lowerStagesApproved(p))
+    return proposals.value.filter((p) => lowerStagesApproved(p) && !isCurrentStageApproved(p))
   }
 
   if (!role || !dept) {
-    return proposals.value.filter((p) => lowerStagesApproved(p))
+    return proposals.value.filter((p) => lowerStagesApproved(p) && !isCurrentStageApproved(p))
   }
 
   return proposals.value.filter(proposal => {
+    // 現在のステージで既に承認済みの提案は除外
+    if (isCurrentStageApproved(proposal)) return false
+
+    // 下位ステージの承認チェック
+    if (!lowerStagesApproved(proposal)) return false
+
     switch (role) {
       case 'supervisor':
-        return proposal.team === dept && lowerStagesApproved(proposal)
+        return proposal.team === dept
       case 'chief':
-        return proposal.group === dept && lowerStagesApproved(proposal)
+        return proposal.group === dept
       case 'manager':
-        return (proposal.department === dept || proposal.section === dept) && lowerStagesApproved(proposal)
+        return (proposal.department === dept || proposal.section === dept)
       case 'committee':
       case 'committee_chair':
-        return (proposal.department === dept || proposal.section === dept) && lowerStagesApproved(proposal)
+        return (proposal.department === dept || proposal.section === dept)
       default:
-        return lowerStagesApproved(proposal)
+        return true
     }
   })
 })
