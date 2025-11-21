@@ -118,7 +118,9 @@ onMounted(loadProposals)
           <th>提案者</th>
           <th>部門</th>
           <th>テーマ</th>
-          <th v-for="option in stageOptions" v-if="option.value" :key="option.value">{{ option.label }}</th>
+          <template v-for="option in stageOptions" :key="option.value">
+            <th v-if="option.value">{{ option.label }}</th>
+          </template>
         </tr>
       </thead>
       <tbody>
@@ -128,11 +130,13 @@ onMounted(loadProposals)
           <td>{{ proposal.proposer_name }}</td>
           <td>{{ proposal.department_detail?.name ?? '' }}</td>
           <td class="title">{{ proposal.deployment_item }}</td>
-          <td v-for="option in stageOptions" v-if="option.value" :key="option.value">
-            <span :class="['badge', statusBadge(proposal, option.value)]">
-              {{ statusBadge(proposal, option.value) ?? '---' }}
-            </span>
-          </td>
+          <template v-for="option in stageOptions" :key="option.value">
+            <td v-if="option.value">
+              <span :class="['badge', statusBadge(proposal, option.value)]">
+                {{ statusBadge(proposal, option.value) ?? '---' }}
+              </span>
+            </td>
+          </template>
         </tr>
       </tbody>
     </table>

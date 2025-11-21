@@ -7,9 +7,9 @@ const navItems = [
   { to: '/submit', label: '提出フォーム' },
   { to: '/proposals', label: '提出済み一覧' },
   { to: '/approvals', label: '承認センター' },
-  { path: '/confirmed', label: '確認済み一覧' },
-  { path: '/reports', label: 'レポート' },
-  { path: '/analytics', label: '分析・レポート' },
+  { to: '/confirmed', label: '確認済み一覧' },
+  { to: '/reports', label: 'レポート' },
+  { to: '/analytics', label: '分析・レポート' },
 ]
 
 const auth = useAuth()
