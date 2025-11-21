@@ -31,6 +31,8 @@ const needsScore = (stage) => ['manager', 'committee'].includes(stage)
 
 const formatDate = (value) => (value ? new Date(value).toLocaleString('ja-JP') : '')
 
+const orderedStages = ['supervisor', 'chief', 'manager', 'committee']
+
 const allowedStages = computed(() => {
   // UserProfileベース（新システム）とEmployeeベース（旧システム）の両方に対応
   const role = auth.state.employee?.profile?.role || auth.state.employee?.role
@@ -54,6 +56,15 @@ const visibleStages = computed(() => {
   return allowed.length ? stages.filter((s) => allowed.includes(s.value)) : []
 })
 
+const lowerStagesApproved = (proposal) => {
+  const current = selectedStage.value
+  const idx = orderedStages.indexOf(current)
+  if (idx <= 0) return true
+  const required = orderedStages.slice(0, idx)
+  const approvals = Array.isArray(proposal.approvals) ? proposal.approvals : []
+  return required.every((stage) => approvals.find((a) => a.stage === stage)?.status === 'approved')
+}
+
 const ensureStage = () => {
   if (visibleStages.value.length === 0) {
     selectedStage.value = null
@@ -73,22 +84,22 @@ const filteredProposals = computed(() => {
   const dept = userProfile?.responsible_department || userProfile?.department
 
   if (!role || !dept) {
-    return proposals.value
+    return proposals.value.filter((p) => lowerStagesApproved(p))
   }
 
   return proposals.value.filter(proposal => {
     switch (role) {
       case 'supervisor':
-        return proposal.team === dept
+        return proposal.team === dept && lowerStagesApproved(proposal)
       case 'chief':
-        return proposal.group === dept
+        return proposal.group === dept && lowerStagesApproved(proposal)
       case 'manager':
-        return proposal.department === dept || proposal.section === dept
+        return (proposal.department === dept || proposal.section === dept) && lowerStagesApproved(proposal)
       case 'committee':
       case 'committee_chair':
-        return proposal.department === dept || proposal.section === dept
+        return (proposal.department === dept || proposal.section === dept) && lowerStagesApproved(proposal)
       default:
-        return true
+        return lowerStagesApproved(proposal)
     }
   })
 })
