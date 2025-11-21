@@ -6,13 +6,13 @@ import { useAuth } from '../stores/auth'
 const auth = useAuth()
 
 const stages = [
-  { value: 'supervisor', label: '班長' },
-  { value: 'chief', label: '係長' },
-  { value: 'manager', label: '課長/部長' },
+  { value: 'supervisor', label: '係長' },
+  { value: 'chief', label: '課長' },
+  { value: 'manager', label: '部長/課長' },
   { value: 'committee', label: '改善委員' },
 ]
 
-const selectedStage = ref(stages[0].value)
+const selectedStage = ref(null)
 const proposals = ref([])
 const selectedProposal = ref(null)
 const loading = ref(false)
@@ -32,32 +32,62 @@ const needsScore = (stage) => ['manager', 'committee'].includes(stage)
 
 const formatDate = (value) => (value ? new Date(value).toLocaleString('ja-JP') : '')
 
-// ログインユーザーの役職と担当部署に基づいてフィルタリング
+const allowedStages = computed(() => {
+  // UserProfileベース（新システム）とEmployeeベース（旧システム）の両方に対応
+  const role = auth.state.employee?.profile?.role || auth.state.employee?.role
+  switch (role) {
+    case 'supervisor':
+      return ['supervisor']
+    case 'chief':
+      return ['chief']
+    case 'manager':
+      return ['manager']
+    case 'committee':
+    case 'committee_chair':
+      return ['committee']
+    default:
+      return []
+  }
+})
+
+const visibleStages = computed(() => {
+  const allowed = allowedStages.value
+  return allowed.length ? stages.filter((s) => allowed.includes(s.value)) : []
+})
+
+const ensureStage = () => {
+  if (visibleStages.value.length === 0) {
+    selectedStage.value = null
+    return false
+  }
+  if (!selectedStage.value || !allowedStages.value.includes(selectedStage.value)) {
+    selectedStage.value = visibleStages.value[0].value
+  }
+  return true
+}
+
+// ログインユーザーの役割と所属に応じてフィルタリング
 const filteredProposals = computed(() => {
-  const userProfile = auth.state.employee?.profile || auth.state.user?.profile
-  if (!userProfile || !userProfile.responsible_department) {
+  // UserProfileベース（新システム）またはEmployeeベース（旧システム）に対応
+  const userProfile = auth.state.employee?.profile || auth.state.employee
+  const role = userProfile?.role
+  const dept = userProfile?.responsible_department || userProfile?.department
+
+  if (!role || !dept) {
     return proposals.value
   }
 
-  const userRole = userProfile.role
-  const userDept = userProfile.responsible_department
-
   return proposals.value.filter(proposal => {
-    // 役職に応じた部署のチェック
-    switch (userRole) {
+    switch (role) {
       case 'supervisor':
-        // 班長: 担当班の提案のみ
-        return proposal.team === userDept
+        return proposal.team === dept
       case 'chief':
-        // 係長: 担当係の提案のみ
-        return proposal.group === userDept
+        return proposal.group === dept
       case 'manager':
-        // 部門長・課長: 担当部・課の提案のみ
-        return proposal.department === userDept || proposal.section === userDept
+        return proposal.department === dept || proposal.section === dept
       case 'committee':
       case 'committee_chair':
-        // 改善委員・改善委員長: 担当部・課の提案のみ
-        return proposal.department === userDept || proposal.section === userDept
+        return proposal.department === dept || proposal.section === dept
       default:
         return true
     }
@@ -65,6 +95,12 @@ const filteredProposals = computed(() => {
 })
 
 const loadProposals = async () => {
+  if (!ensureStage()) {
+    proposals.value = []
+    selectedProposal.value = null
+    message.value = 'このユーザーは承認ステージの権限がありません'
+    return
+  }
   loading.value = true
   message.value = ''
   try {
@@ -86,6 +122,7 @@ const loadProposals = async () => {
 }
 
 const selectProposal = (proposal) => {
+  if (!ensureStage()) return
   selectedProposal.value = proposal
 }
 
@@ -106,8 +143,13 @@ const normalizedImages = (kind) => {
 const beforeImages = computed(() => normalizedImages('before'))
 const afterImages = computed(() => normalizedImages('after'))
 
+const canActOnCurrentStage = computed(() => {
+  return !!selectedStage.value && allowedStages.value.includes(selectedStage.value)
+})
+
 const openApprovalDialog = () => {
   if (!selectedProposal.value) return
+  if (!ensureStage()) return
   dialogOpen.value = true
   form.status = 'approved'
   form.confirmed_name = auth.state.employee?.name || auth.state.user?.username || ''
@@ -123,7 +165,11 @@ const closeDialog = () => {
 
 const submitApproval = async () => {
   if (!form.confirmed_name) {
-    message.value = '確認者名を入力してください'
+    message.value = '承認者氏名を入力してください'
+    return
+  }
+  if (!canActOnCurrentStage.value) {
+    message.value = 'このステージの承認権限がありません'
     return
   }
   const payload = {
@@ -141,33 +187,37 @@ const submitApproval = async () => {
   }
   try {
     await approveProposal(selectedProposal.value.id, payload)
-    message.value = '承認処理が完了しました'
+    message.value = '承認を登録しました'
     dialogOpen.value = false
     selectedProposal.value = null
     await loadProposals()
   } catch (error) {
-    message.value = error.message ?? '承認処理に失敗しました'
+    message.value = error.message ?? '承認登録に失敗しました'
   }
 }
 
 watch(selectedStage, () => {
+  if (!ensureStage()) return
   selectedProposal.value = null
   loadProposals()
 })
 
-onMounted(loadProposals)
+onMounted(() => {
+  ensureStage()
+  loadProposals()
+})
 </script>
 
 <template>
   <section class="card">
     <header class="section-header">
       <div>
-        <h2>✅ 承認センター</h2>
-        <p>あなたの管轄配下の承認待ち提案を処理します。</p>
+        <h2>✔️ 承認センター</h2>
+        <p>あなたの管理権限での承認待ち提案を処理します。</p>
       </div>
       <div class="stage-tabs">
         <button
-          v-for="stage in stages"
+          v-for="stage in visibleStages"
           :key="stage.value"
           :class="['tab', { active: selectedStage === stage.value }]"
           @click="selectedStage = stage.value"
@@ -177,7 +227,7 @@ onMounted(loadProposals)
       </div>
     </header>
 
-    <div v-if="message" class="alert" :class="{ error: message.includes('失敗'), success: message.includes('完了') }">
+    <div v-if="message" class="alert" :class="{ error: message.includes('失敗'), success: message.includes('登録') }">
       {{ message }}
     </div>
 
@@ -202,7 +252,7 @@ onMounted(loadProposals)
           <h3 class="proposal-title">{{ proposal.deployment_item }}</h3>
           <div class="proposal-meta">
             <span>提案者: {{ proposal.proposer_detail?.name || proposal.proposer_name }}</span>
-            <span>部門: {{ proposal.department_detail?.name }}</span>
+            <span>部署: {{ proposal.department_detail?.name }}</span>
             <span v-if="proposal.reduction_hours">
               削減: {{ proposal.reduction_hours }} Hr/月
             </span>
@@ -215,7 +265,9 @@ onMounted(loadProposals)
         <div class="detail-header">
           <h2>提案詳細</h2>
           <div class="detail-actions">
-            <button @click="openApprovalDialog" class="btn-approve">承認処理</button>
+            <button @click="openApprovalDialog" class="btn-approve" :disabled="!canActOnCurrentStage">
+              承認処理
+            </button>
             <button @click="closeDetail" class="btn-close">×</button>
           </div>
         </div>
@@ -237,7 +289,7 @@ onMounted(loadProposals)
                 <span>{{ selectedProposal.proposer_detail?.name || selectedProposal.proposer_name }}</span>
               </div>
               <div class="detail-item">
-                <label>部門</label>
+                <label>部署</label>
                 <span>{{ selectedProposal.department_detail?.name }}</span>
               </div>
             </div>
@@ -272,7 +324,7 @@ onMounted(loadProposals)
               </div>
               <div class="detail-item">
                 <label>効果額</label>
-                <span>¥{{ (selectedProposal.effect_amount || 0).toLocaleString() }}/月</span>
+                <span>\{{ (selectedProposal.effect_amount || 0).toLocaleString() }}/月</span>
               </div>
             </div>
           </div>
@@ -294,7 +346,7 @@ onMounted(loadProposals)
       </div>
 
       <div v-else class="no-selection">
-        <p>提案を選択すると詳細が表示されます</p>
+        <p>提案を選択して詳細を表示してください</p>
       </div>
     </div>
 
@@ -306,15 +358,15 @@ onMounted(loadProposals)
 
         <form @submit.prevent="submitApproval" class="approval-form">
           <label>
-            判定
+            結果
             <select v-model="form.status" required>
               <option value="approved">承認</option>
-              <option value="rejected">差戻し</option>
+              <option value="rejected">却下</option>
             </select>
           </label>
 
           <label>
-            確認者名*
+            承認者氏名*
             <input v-model="form.confirmed_name" type="text" required />
           </label>
 
@@ -324,18 +376,18 @@ onMounted(loadProposals)
           </label>
 
           <div v-if="needsScore(selectedStage)" class="scores-section">
-            <h3>評価スコア (1-5点)</h3>
+            <h3>採点スコア (1-5点)</h3>
             <div class="score-grid">
               <label>
                 マインドセット
                 <input v-model.number="form.mindset" type="number" min="1" max="5" required />
               </label>
               <label>
-                アイデア工夫
+                アイデア力
                 <input v-model.number="form.idea" type="number" min="1" max="5" required />
               </label>
               <label>
-                みんなのヒント
+                ふり返りのヒント
                 <input v-model.number="form.hint" type="number" min="1" max="5" required />
               </label>
             </div>
@@ -343,7 +395,7 @@ onMounted(loadProposals)
 
           <div class="modal-actions">
             <button type="button" @click="closeDialog" class="btn-cancel">キャンセル</button>
-            <button type="submit" class="btn-submit">承認処理を実行</button>
+            <button type="submit" class="btn-submit" :disabled="!canActOnCurrentStage">承認を実行</button>
           </div>
         </form>
       </div>
@@ -514,7 +566,12 @@ onMounted(loadProposals)
   cursor: pointer;
 }
 
-.btn-approve:hover {
+.btn-approve:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-approve:hover:not(:disabled) {
   background: #059669;
 }
 
@@ -739,7 +796,12 @@ onMounted(loadProposals)
   cursor: pointer;
 }
 
-.btn-submit:hover {
+.btn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-submit:hover:not(:disabled) {
   background: #2563eb;
 }
 
@@ -764,3 +826,4 @@ onMounted(loadProposals)
   }
 }
 </style>
+

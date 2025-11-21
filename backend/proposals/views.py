@@ -268,6 +268,19 @@ class LoginView(APIView):
         if not user:
             return Response({'detail': '認証に失敗しました'}, status=status.HTTP_400_BAD_REQUEST)
         login(request, user)
+
+        # UserProfileベースのユーザー（新システム）の場合
+        user_profile = getattr(user, "profile", None)
+        if user_profile:
+            user_data = UserSerializer(user).data
+            return Response({
+                'username': user.username,
+                'name': user.first_name or user.username,
+                'profile': user_data.get('profile'),
+                'permissions': user_data.get('permissions', [])
+            })
+
+        # 従来のEmployeeベースのユーザーの場合
         employee = getattr(user, 'employee_profile', None)
         employee_data = EmployeeSerializer(employee).data if employee else None
 
