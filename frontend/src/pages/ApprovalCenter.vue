@@ -45,7 +45,8 @@ const allowedStages = computed(() => {
       return ['supervisor', 'chief', 'manager']
     case 'committee':
     case 'committee_chair':
-      return ['supervisor', 'chief', 'manager', 'committee']
+      return ['committee']
+      // return ['supervisor', 'chief', 'manager', 'committee']
     default:
       return []
   }
