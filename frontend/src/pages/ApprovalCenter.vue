@@ -1,6 +1,9 @@
 <script setup>
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { approveProposal, fetchProposals } from '../api/client'
+import { useAuth } from '../stores/auth'
+
+const auth = useAuth()
 
 const stages = [
   { value: 'supervisor', label: '班長' },
@@ -11,10 +14,10 @@ const stages = [
 
 const selectedStage = ref(stages[0].value)
 const proposals = ref([])
+const selectedProposal = ref(null)
 const loading = ref(false)
 const message = ref('')
 const dialogOpen = ref(false)
-const activeProposal = ref(null)
 
 const form = reactive({
   status: 'approved',
@@ -27,11 +30,54 @@ const form = reactive({
 
 const needsScore = (stage) => ['manager', 'committee'].includes(stage)
 
+const formatDate = (value) => (value ? new Date(value).toLocaleString('ja-JP') : '')
+
+// ログインユーザーの役職と担当部署に基づいてフィルタリング
+const filteredProposals = computed(() => {
+  const userProfile = auth.state.employee?.profile || auth.state.user?.profile
+  if (!userProfile || !userProfile.responsible_department) {
+    return proposals.value
+  }
+
+  const userRole = userProfile.role
+  const userDept = userProfile.responsible_department
+
+  return proposals.value.filter(proposal => {
+    // 役職に応じた部署のチェック
+    switch (userRole) {
+      case 'supervisor':
+        // 班長: 担当班の提案のみ
+        return proposal.team === userDept
+      case 'chief':
+        // 係長: 担当係の提案のみ
+        return proposal.group === userDept
+      case 'manager':
+        // 部門長・課長: 担当部・課の提案のみ
+        return proposal.department === userDept || proposal.section === userDept
+      case 'committee':
+      case 'committee_chair':
+        // 改善委員・改善委員長: 担当部・課の提案のみ
+        return proposal.department === userDept || proposal.section === userDept
+      default:
+        return true
+    }
+  })
+})
+
 const loadProposals = async () => {
   loading.value = true
   message.value = ''
   try {
     proposals.value = await fetchProposals({ stage: selectedStage.value, status: 'pending' })
+    if (selectedProposal.value) {
+      // 選択中の提案を更新
+      const updated = filteredProposals.value.find(p => p.id === selectedProposal.value.id)
+      if (updated) {
+        selectedProposal.value = updated
+      } else {
+        selectedProposal.value = null
+      }
+    }
   } catch (error) {
     message.value = error.message ?? '承認待ち一覧の取得に失敗しました'
   } finally {
@@ -39,15 +85,27 @@ const loadProposals = async () => {
   }
 }
 
-const openDialog = (proposal) => {
-  activeProposal.value = proposal
+const selectProposal = (proposal) => {
+  selectedProposal.value = proposal
+}
+
+const closeDetail = () => {
+  selectedProposal.value = null
+}
+
+const openApprovalDialog = () => {
+  if (!selectedProposal.value) return
   dialogOpen.value = true
   form.status = 'approved'
-  form.confirmed_name = ''
+  form.confirmed_name = auth.state.employee?.name || auth.state.user?.username || ''
   form.comment = ''
   form.mindset = 3
   form.idea = 3
   form.hint = 3
+}
+
+const closeDialog = () => {
+  dialogOpen.value = false
 }
 
 const submitApproval = async () => {
@@ -69,16 +127,21 @@ const submitApproval = async () => {
     }
   }
   try {
-    await approveProposal(activeProposal.value.id, payload)
+    await approveProposal(selectedProposal.value.id, payload)
+    message.value = '承認処理が完了しました'
     dialogOpen.value = false
-    activeProposal.value = null
-    loadProposals()
+    selectedProposal.value = null
+    await loadProposals()
   } catch (error) {
     message.value = error.message ?? '承認処理に失敗しました'
   }
 }
 
-watch(selectedStage, loadProposals)
+watch(selectedStage, () => {
+  selectedProposal.value = null
+  loadProposals()
+})
+
 onMounted(loadProposals)
 </script>
 
@@ -87,7 +150,7 @@ onMounted(loadProposals)
     <header class="section-header">
       <div>
         <h2>✅ 承認センター</h2>
-        <p>役割ごとの承認待ち提案を処理します。</p>
+        <p>あなたの管轄配下の承認待ち提案を処理します。</p>
       </div>
       <div class="stage-tabs">
         <button
@@ -101,161 +164,590 @@ onMounted(loadProposals)
       </div>
     </header>
 
-    <div v-if="message" class="alert error">{{ message }}</div>
-    <div v-if="loading" class="placeholder">読み込み中…</div>
+    <div v-if="message" class="alert" :class="{ error: message.includes('失敗'), success: message.includes('完了') }">
+      {{ message }}
+    </div>
 
-    <div v-else class="cards">
-      <article v-for="proposal in proposals" :key="proposal.id" class="proposal-card">
-        <div class="proposal-head">
-          <div>
-            <h3>{{ proposal.deployment_item }}</h3>
-            <p>#{{ proposal.management_no }} / {{ proposal.proposer_name }}</p>
-          </div>
-          <small>{{ new Date(proposal.submitted_at).toLocaleString() }}</small>
+    <div class="content-layout">
+      <div class="proposals-list">
+        <div v-if="loading" class="loading">読み込み中...</div>
+        <div v-else-if="filteredProposals.length === 0" class="no-data">
+          承認待ちの提案がありません
         </div>
-        <p class="body">{{ proposal.problem_summary }}</p>
-        <div class="meta">
-          <div>
-            <span>部門</span>
-            <strong>{{ proposal.department_detail?.name ?? '' }}</strong>
+        <div
+          v-else
+          v-for="proposal in filteredProposals"
+          :key="proposal.id"
+          class="proposal-item"
+          :class="{ selected: selectedProposal?.id === proposal.id }"
+          @click="selectProposal(proposal)"
+        >
+          <div class="proposal-item-header">
+            <span class="management-no">{{ proposal.management_no }}</span>
+            <span class="badge badge-pending">承認待ち</span>
           </div>
-          <div>
-            <span>削減時間</span>
-            <strong>{{ proposal.reduction_hours ?? '-' }} Hr</strong>
+          <h3 class="proposal-title">{{ proposal.deployment_item }}</h3>
+          <div class="proposal-meta">
+            <span>提案者: {{ proposal.proposer_detail?.name || proposal.proposer_name }}</span>
+            <span>部門: {{ proposal.department_detail?.name }}</span>
+            <span v-if="proposal.reduction_hours">
+              削減: {{ proposal.reduction_hours }} Hr/月
+            </span>
           </div>
-          <div>
-            <span>効果額</span>
-            <strong>¥{{ (proposal.effect_amount ?? 0).toLocaleString() }}</strong>
+          <div class="proposal-date">提出: {{ formatDate(proposal.submitted_at) }}</div>
+        </div>
+      </div>
+
+      <div v-if="selectedProposal" class="proposal-detail">
+        <div class="detail-header">
+          <h2>提案詳細</h2>
+          <div class="detail-actions">
+            <button @click="openApprovalDialog" class="btn-approve">承認処理</button>
+            <button @click="closeDetail" class="btn-close">×</button>
           </div>
         </div>
-        <button class="approve" @click="openDialog(proposal)">承認/コメント</button>
-      </article>
-      <p v-if="!proposals.length" class="placeholder">承認待ちの提案はありません。</p>
+
+        <div class="detail-content">
+          <div class="detail-section">
+            <h3>基本情報</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <label>管理No</label>
+                <span>{{ selectedProposal.management_no }}</span>
+              </div>
+              <div class="detail-item">
+                <label>提出日時</label>
+                <span>{{ formatDate(selectedProposal.submitted_at) }}</span>
+              </div>
+              <div class="detail-item">
+                <label>提案者</label>
+                <span>{{ selectedProposal.proposer_detail?.name || selectedProposal.proposer_name }}</span>
+              </div>
+              <div class="detail-item">
+                <label>部門</label>
+                <span>{{ selectedProposal.department_detail?.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h3>テーマ</h3>
+            <p>{{ selectedProposal.deployment_item }}</p>
+          </div>
+
+          <div class="detail-section">
+            <h3>問題点</h3>
+            <p class="text-content">{{ selectedProposal.problem_summary }}</p>
+          </div>
+
+          <div class="detail-section">
+            <h3>改善案</h3>
+            <p class="text-content">{{ selectedProposal.improvement_plan }}</p>
+          </div>
+
+          <div v-if="selectedProposal.improvement_result" class="detail-section">
+            <h3>改善結果</h3>
+            <p class="text-content">{{ selectedProposal.improvement_result }}</p>
+          </div>
+
+          <div class="detail-section">
+            <h3>効果</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <label>削減時間</label>
+                <span>{{ selectedProposal.reduction_hours }} Hr/月</span>
+              </div>
+              <div class="detail-item">
+                <label>効果額</label>
+                <span>¥{{ (selectedProposal.effect_amount || 0).toLocaleString() }}/月</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedProposal.before_image_path || selectedProposal.after_image_path" class="detail-section">
+            <h3>画像</h3>
+            <div class="images-grid">
+              <div v-if="selectedProposal.before_image_path" class="image-item">
+                <label>改善前</label>
+                <img :src="selectedProposal.before_image_path" alt="改善前" />
+              </div>
+              <div v-if="selectedProposal.after_image_path" class="image-item">
+                <label>改善後</label>
+                <img :src="selectedProposal.after_image_path" alt="改善後" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="no-selection">
+        <p>提案を選択すると詳細が表示されます</p>
+      </div>
+    </div>
+
+    <!-- 承認ダイアログ -->
+    <div v-if="dialogOpen" class="modal-overlay" @click.self="closeDialog">
+      <div class="modal">
+        <h2>承認処理</h2>
+        <p class="modal-subtitle">{{ selectedProposal?.management_no }} - {{ selectedProposal?.deployment_item }}</p>
+
+        <form @submit.prevent="submitApproval" class="approval-form">
+          <label>
+            判定
+            <select v-model="form.status" required>
+              <option value="approved">承認</option>
+              <option value="rejected">差戻し</option>
+            </select>
+          </label>
+
+          <label>
+            確認者名*
+            <input v-model="form.confirmed_name" type="text" required />
+          </label>
+
+          <label>
+            コメント
+            <textarea v-model="form.comment" rows="3"></textarea>
+          </label>
+
+          <div v-if="needsScore(selectedStage)" class="scores-section">
+            <h3>評価スコア (1-5点)</h3>
+            <div class="score-grid">
+              <label>
+                マインドセット
+                <input v-model.number="form.mindset" type="number" min="1" max="5" required />
+              </label>
+              <label>
+                アイデア工夫
+                <input v-model.number="form.idea" type="number" min="1" max="5" required />
+              </label>
+              <label>
+                みんなのヒント
+                <input v-model.number="form.hint" type="number" min="1" max="5" required />
+              </label>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" @click="closeDialog" class="btn-cancel">キャンセル</button>
+            <button type="submit" class="btn-submit">承認処理を実行</button>
+          </div>
+        </form>
+      </div>
     </div>
   </section>
-
-  <dialog v-if="dialogOpen" open class="approval-dialog">
-    <header>
-      <h3>{{ stages.find((s) => s.value === selectedStage)?.label }} 承認</h3>
-      <button class="ghost" @click="dialogOpen = false">閉じる</button>
-    </header>
-    <section v-if="activeProposal" class="dialog-body">
-      <p class="title">{{ activeProposal.deployment_item }}</p>
-      <textarea v-model="form.comment" rows="3" placeholder="コメント"></textarea>
-      <label>
-        確認者名*
-        <input v-model="form.confirmed_name" type="text" required />
-      </label>
-      <label>
-        ステータス
-        <select v-model="form.status">
-          <option value="approved">承認</option>
-          <option value="rejected">差戻し</option>
-        </select>
-      </label>
-      <div v-if="needsScore(selectedStage)" class="scores">
-        <label>マインド
-          <input v-model.number="form.mindset" type="number" min="1" max="5" />
-        </label>
-        <label>アイデア
-          <input v-model.number="form.idea" type="number" min="1" max="5" />
-        </label>
-        <label>ヒント
-          <input v-model.number="form.hint" type="number" min="1" max="5" />
-        </label>
-      </div>
-      <footer>
-        <button class="approve" @click="submitApproval">保存</button>
-      </footer>
-    </section>
-  </dialog>
 </template>
 
 <style scoped>
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
 .stage-tabs {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
 .tab {
-  border: 1px solid #d4dbe5;
-  background: #fff;
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.tab.active {
-  background: #1d4ed8;
-  color: #fff;
-  border-color: #1d4ed8;
-}
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
-}
-.proposal-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-.proposal-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-.proposal-head h3 {
-  margin: 0;
-}
-.body {
-  min-height: 60px;
-  color: #4b5563;
-}
-.meta {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-  font-size: 0.85rem;
-}
-.approve {
-  align-self: flex-end;
-  padding: 0.5rem 1rem;
-  border: none;
+  padding: 0.6rem 1.2rem;
+  border: 2px solid #e5e7eb;
+  background: white;
   border-radius: 8px;
-  background: #16a34a;
-  color: #fff;
   cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
 }
-dialog.approval-dialog {
-  border: none;
-  border-radius: 12px;
-  padding: 1.5rem;
-  width: min(420px, 90vw);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+
+.tab:hover {
+  background: #f3f4f6;
 }
-dialog header {
+
+.tab.active {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.content-layout {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 1.5rem;
+  min-height: 600px;
+}
+
+.proposals-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow-y: auto;
+  max-height: 70vh;
+  background: #f9fafb;
+}
+
+.loading,
+.no-data {
+  padding: 2rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+.proposal-item {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.proposal-item:hover {
+  background: #f3f4f6;
+}
+
+.proposal-item.selected {
+  background: #dbeafe;
+  border-left: 4px solid #3b82f6;
+}
+
+.proposal-item-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.management-no {
+  font-weight: 600;
+  color: #3b82f6;
+  font-size: 0.9rem;
+}
+
+.badge {
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.proposal-title {
+  font-size: 1rem;
+  margin: 0.5rem 0;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.proposal-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.proposal-date {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.proposal-detail {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
+}
+
+.detail-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #1f2937;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-approve {
+  padding: 0.6rem 1.2rem;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-approve:hover {
+  background: #059669;
+}
+
+.btn-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.btn-close:hover {
+  background: #dc2626;
+}
+
+.detail-content {
+  padding: 1.5rem;
+}
+
+.detail-section {
+  margin-bottom: 2rem;
+}
+
+.detail-section h3 {
+  font-size: 1.1rem;
+  color: #374151;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.detail-section p {
+  margin: 0;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.text-content {
+  white-space: pre-wrap;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.detail-item label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.detail-item span {
+  color: #1f2937;
+}
+
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.image-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.image-item label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.image-item img {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.no-selection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.alert {
+  padding: 1rem;
+  border-radius: 6px;
   margin-bottom: 1rem;
 }
-.dialog-body textarea,
-.dialog-body input,
-.dialog-body select {
-  width: 100%;
-  margin-bottom: 0.8rem;
-  padding: 0.5rem;
-  border-radius: 6px;
-  border: 1px solid #d1d5db;
+
+.alert.error {
+  background: #fee2e2;
+  color: #991b1b;
 }
-.scores {
+
+.alert.success {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* モーダル */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
-  gap: 0.8rem;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
-footer {
-  text-align: right;
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal h2 {
+  margin: 0 0 0.5rem 0;
+  color: #1f2937;
+}
+
+.modal-subtitle {
+  color: #6b7280;
+  margin: 0 0 1.5rem 0;
+  font-size: 0.9rem;
+}
+
+.approval-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.approval-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.approval-form input,
+.approval-form select,
+.approval-form textarea {
+  padding: 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.scores-section {
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.scores-section h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  color: #374151;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: 0.6rem 1.2rem;
+  background: #e5e7eb;
+  color: #1f2937;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  background: #d1d5db;
+}
+
+.btn-submit {
+  padding: 0.6rem 1.2rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-submit:hover {
+  background: #2563eb;
+}
+
+@media (max-width: 1024px) {
+  .content-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .proposal-detail {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .score-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

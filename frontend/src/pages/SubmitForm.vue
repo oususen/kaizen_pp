@@ -20,8 +20,8 @@ const form = reactive({
   contribution_business: [],
   comment: '',
   reduction_hours: '',
-  before_image: null,
-  after_image: null,
+  before_images: [],
+  after_images: [],
 })
 
 const toId = (value) => (value === null || value === undefined ? '' : String(value))
@@ -107,8 +107,8 @@ const resetForm = () => {
     contribution_business: [],
     comment: '',
     reduction_hours: '',
-    before_image: null,
-    after_image: null,
+    before_images: [],
+    after_images: [],
   })
   employees.value = []
   success.value = ''
@@ -168,9 +168,13 @@ watch(() => form.team, (newTeam) => {
   }
 })
 
-const handleFileChange = (event, field) => {
-  const [file] = event.target.files ?? []
-  form[field] = file || null
+const handleFilesChange = (event, field) => {
+  const files = Array.from(event.target.files || [])
+  form[field] = files
+}
+
+const removeImage = (field, index) => {
+  form[field].splice(index, 1)
 }
 
 const submitProposal = async () => {
@@ -180,9 +184,14 @@ const submitProposal = async () => {
     message.value = '必須項目を入力してください'
     return
   }
+  if (form.before_images.length === 0) {
+    message.value = '改善前の写真を最低1枚アップロードしてください'
+    return
+  }
   loading.value = true
   try {
-    await createProposal({
+    // FormDataを使って複数画像を送信
+    const formData = {
       department: form.department,
       group: form.group,
       team: form.team,
@@ -196,9 +205,10 @@ const submitProposal = async () => {
       contribution_business: form.contribution_business.join(', '),
       comment: form.comment,
       reduction_hours: form.reduction_hours,
-      before_image: form.before_image,
-      after_image: form.after_image,
-    })
+      before_image: form.before_images[0] || null,  // 最初の画像をbefore_imageとして送信
+      after_image: form.after_images[0] || null,    // 最初の画像をafter_imageとして送信
+    }
+    await createProposal(formData)
     success.value = '改善提案を提出しました'
     resetForm()
   } catch (error) {
@@ -316,15 +326,47 @@ onMounted(() => {
         <textarea v-model="form.comment" rows="2"></textarea>
       </label>
 
-      <label>
-        改善前の写真
-        <input type="file" accept="image/*" @change="(event) => handleFileChange(event, 'before_image')" />
-      </label>
+      <div class="image-upload-section span">
+        <div class="image-upload-container">
+          <div class="image-upload-column">
+            <h3>改善前の写真 <span class="required-badge">必須</span></h3>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              @change="(event) => handleFilesChange(event, 'before_images')"
+              class="file-input"
+            />
+            <div v-if="form.before_images.length > 0" class="image-preview-grid">
+              <div v-for="(file, index) in form.before_images" :key="index" class="image-preview-item">
+                <img :src="URL.createObjectURL(file)" :alt="`改善前 ${index + 1}`" />
+                <button type="button" @click="removeImage('before_images', index)" class="remove-btn">×</button>
+                <span class="image-name">{{ file.name }}</span>
+              </div>
+            </div>
+            <p v-else class="upload-hint">複数枚選択可能</p>
+          </div>
 
-      <label>
-        改善後の写真
-        <input type="file" accept="image/*" @change="(event) => handleFileChange(event, 'after_image')" />
-      </label>
+          <div class="image-upload-column">
+            <h3>改善後の写真</h3>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              @change="(event) => handleFilesChange(event, 'after_images')"
+              class="file-input"
+            />
+            <div v-if="form.after_images.length > 0" class="image-preview-grid">
+              <div v-for="(file, index) in form.after_images" :key="index" class="image-preview-item">
+                <img :src="URL.createObjectURL(file)" :alt="`改善後 ${index + 1}`" />
+                <button type="button" @click="removeImage('after_images', index)" class="remove-btn">×</button>
+                <span class="image-name">{{ file.name }}</span>
+              </div>
+            </div>
+            <p v-else class="upload-hint">複数枚選択可能</p>
+          </div>
+        </div>
+      </div>
 
       <div class="span actions">
         <button type="submit" :disabled="loading">{{ loading ? '送信中…' : '提案を提出' }}</button>
@@ -415,6 +457,125 @@ button:disabled {
 .alert.success {
   background: #dcfce7;
   color: #166534;
+}
+
+/* 画像アップロードセクション */
+.image-upload-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 2px dashed #cbd5e1;
+}
+
+.image-upload-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.image-upload-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.image-upload-column h3 {
+  font-size: 1.1rem;
+  color: #1e293b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.required-badge {
+  background: #ef4444;
+  color: white;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.file-input {
+  padding: 0.8rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+
+.file-input:hover {
+  border-color: #3b82f6;
+}
+
+.upload-hint {
+  color: #64748b;
+  font-size: 0.9rem;
+  margin: 0;
+  text-align: center;
+  font-style: italic;
+}
+
+.image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+}
+
+.image-preview-item {
+  position: relative;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+.image-preview-item img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+}
+
+.image-name {
+  display: block;
+  padding: 0.4rem;
+  font-size: 0.75rem;
+  color: #64748b;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-btn:hover {
+  background: #dc2626;
+}
+
+@media (max-width: 768px) {
+  .image-upload-container {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 
