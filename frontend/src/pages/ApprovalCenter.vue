@@ -6,8 +6,8 @@ import { useAuth } from '../stores/auth'
 const auth = useAuth()
 
 const stages = [
-  { value: 'supervisor', label: '係長' },
-  { value: 'chief', label: '課長' },
+  { value: 'supervisor', label: '班長' },
+  { value: 'chief', label: '係長' },
   { value: 'manager', label: '部長/課長' },
   { value: 'committee', label: '改善委員' },
 ]
