@@ -39,6 +39,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source="first_name", read_only=True)
     employee_name = serializers.CharField(source="employee_profile.name", read_only=True)
     department_name = serializers.CharField(source="employee_profile.department.name", read_only=True)
     profile = UserProfileSerializer(read_only=True)
@@ -46,7 +47,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "employee_name", "department_name", "profile", "permissions"]
+        fields = ["id", "username", "name", "email", "employee_name", "department_name", "profile", "permissions"]
 
     def get_permissions(self, obj):
         # 既存の権限を返す
@@ -56,6 +57,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserCreateUpdateSerializer(serializers.ModelSerializer):
     """ユーザー作成・更新用のシリアライザー"""
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    name = serializers.CharField(source='first_name', required=False, allow_blank=True)
     profile_role = serializers.ChoiceField(
         choices=UserProfile.ROLE_CHOICES,
         required=False,
@@ -71,7 +73,7 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "password", "profile_role", "profile_responsible_department"]
+        fields = ["id", "username", "name", "email", "password", "profile_role", "profile_responsible_department"]
 
     def create(self, validated_data):
         profile_data = validated_data.pop('profile', {})

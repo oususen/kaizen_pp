@@ -21,6 +21,7 @@ const showModal = ref(false)
 const editingUser = ref(null)
 const formData = ref({
   username: '',
+  name: '',
   email: '',
   password: '',
   profile_role: 'staff',
@@ -60,6 +61,7 @@ const openCreateModal = () => {
   editingUser.value = null
   formData.value = {
     username: '',
+    name: '',
     email: '',
     password: '',
     profile_role: 'staff',
@@ -72,6 +74,7 @@ const openEditModal = (user) => {
   editingUser.value = user
   formData.value = {
     username: user.username,
+    name: user.name || '',
     email: user.email,
     password: '',
     profile_role: user.profile?.role || 'staff',
@@ -87,7 +90,7 @@ const closeModal = () => {
 
 const saveUser = async () => {
   if (!formData.value.username) {
-    alert('ユーザー名を入力してください')
+    alert('ユーザーIDを入力してください')
     return
   }
 
@@ -104,6 +107,7 @@ const saveUser = async () => {
   try {
     const payload = {
       username: formData.value.username,
+      name: formData.value.name,
       email: formData.value.email,
       profile_role: formData.value.profile_role,
       profile_responsible_department: formData.value.profile_responsible_department,
@@ -172,6 +176,7 @@ onMounted(() => {
       <table>
         <thead>
           <tr>
+            <th>ユーザーID</th>
             <th>ユーザー名</th>
             <th>メールアドレス</th>
             <th>役職</th>
@@ -183,6 +188,7 @@ onMounted(() => {
         <tbody>
           <tr v-for="user in users" :key="user.id">
             <td><strong>{{ user.username }}</strong></td>
+            <td>{{ user.name || '-' }}</td>
             <td>{{ user.email }}</td>
             <td>{{ getRoleLabel(user.profile?.role) }}</td>
             <td>{{ getDepartmentName(user.profile?.responsible_department) }}</td>
@@ -201,12 +207,22 @@ onMounted(() => {
         <h2>{{ editingUser ? 'ユーザー編集' : '新規ユーザー追加' }}</h2>
         <form @submit.prevent="saveUser">
           <div class="form-group">
-            <label>ユーザー名 <span class="required">*</span></label>
+            <label>ユーザーID（ログインID） <span class="required">*</span></label>
             <input
               v-model="formData.username"
               type="text"
-              :disabled="!canEditUsers"
+              :disabled="!canEditUsers || editingUser"
               required
+            />
+            <small v-if="editingUser" class="hint">ユーザーIDは変更できません</small>
+          </div>
+
+          <div class="form-group">
+            <label>ユーザー名</label>
+            <input
+              v-model="formData.name"
+              type="text"
+              :disabled="!canEditUsers"
             />
           </div>
 
