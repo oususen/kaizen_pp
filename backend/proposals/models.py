@@ -291,3 +291,70 @@ class ProposalApproval(models.Model):
         return f"{self.proposal.management_no} / {self.stage}"
 
 
+class UserProfile(models.Model):
+    """ユーザーの役職・担当部署情報."""
+
+    ROLE_CHOICES = [
+        ("staff", "一般社員"),
+        ("supervisor", "班長"),
+        ("chief", "係長"),
+        ("manager", "部門長・課長"),
+        ("committee", "改善委員"),
+        ("committee_chair", "改善委員長"),
+    ]
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile"
+    )
+
+    # 役職
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default="staff",
+        help_text="ユーザーの役職"
+    )
+
+    # 担当部署（班長・係長・部門長・課長・改善委員用）
+    # 班長: 班、係長: 係、部門長・課長: 部・課、改善委員: 部・課
+    responsible_department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="responsible_users",
+        help_text="担当する部署（班長は班、係長は係、部門長・課長・改善委員は部・課）"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "ユーザープロファイル"
+        verbose_name_plural = "ユーザープロファイル"
+
+    def __str__(self) -> str:
+        role_display = dict(self.ROLE_CHOICES).get(self.role, self.role)
+        dept_name = self.responsible_department.name if self.responsible_department else "未設定"
+        return f"{self.user.username} - {role_display} ({dept_name})"
+
+
+class UserPermission(models.Model):
+    """ユーザーごとのページ閲覧・編集権限."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="permissions"
+    )
+    resource = models.CharField(max_length=50, help_text="submit, proposals, etc.")
+    can_view = models.BooleanField(default=False)
+    can_edit = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("user", "resource")
+
+    def __str__(self) -> str:
+        return f"{self.user.username} - {self.resource}"
+
+

@@ -163,3 +163,68 @@ export const fetchEmployees = async (params = {}) => {
   return []
 }
 
+export const fetchUsers = async (params = {}) => {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.append(key, value)
+    }
+  })
+  const query = search.toString()
+  const path = query ? `/users/?${query}` : '/users/'
+  const data = await request(path)
+  if (Array.isArray(data)) return data
+  if (data && Array.isArray(data.results)) return data.results
+  return []
+}
+
+export const fetchPermissions = async (params = {}) => {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.append(key, value)
+    }
+  })
+  const query = search.toString()
+  const path = query ? `/permissions/?${query}` : '/permissions/'
+  const data = await request(path)
+  if (Array.isArray(data)) return data
+  if (data && Array.isArray(data.results)) return data.results
+  return []
+}
+
+export const updatePermission = (id, payload) =>
+  request(`/permissions/${id}/`, {
+    method: 'PUT',
+    body: payload,
+  })
+
+export const createPermission = (payload) =>
+  request('/permissions/', {
+    method: 'POST',
+    body: payload,
+  })
+
+export const deletePermission = (id) =>
+  request(`/permissions/${id}/`, {
+    method: 'DELETE',
+  })
+
+export const createUser = (payload) =>
+  request('/users/', {
+    method: 'POST',
+    body: payload,
+  })
+
+export const updateUser = (id, payload) =>
+  request(`/users/${id}/`, {
+    method: 'PATCH',
+    body: payload,
+  })
+
+export const deleteUser = (id) =>
+  request(`/users/${id}/`, {
+    method: 'DELETE',
+  })
+
+

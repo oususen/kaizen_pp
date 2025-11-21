@@ -4,6 +4,8 @@ from django.urls import path
 from .views import (
     CurrentEmployeeView,
     DepartmentViewSet,
+    UserViewSet,
+    UserPermissionViewSet,
     EmployeeViewSet,
     ImprovementProposalViewSet,
     LoginView,
@@ -12,7 +14,9 @@ from .views import (
 
 router = routers.DefaultRouter()
 router.register(r"departments", DepartmentViewSet)
+router.register(r"users", UserViewSet)
 router.register(r"employees", EmployeeViewSet)
+router.register(r"permissions", UserPermissionViewSet)
 router.register(r"improvement-proposals", ImprovementProposalViewSet, basename="improvement-proposals")
 
 urlpatterns = router.urls + [

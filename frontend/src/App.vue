@@ -4,18 +4,24 @@ import { useAuth } from './stores/auth'
 import { computed } from 'vue'
 
 const navItems = [
-  { to: '/submit', label: '提出フォーム' },
-  { to: '/proposals', label: '提出済み一覧' },
-  { to: '/approvals', label: '承認センター' },
-  { to: '/confirmed', label: '確認済み一覧' },
-  { to: '/reports', label: 'レポート' },
-  { to: '/analytics', label: '分析・レポート' },
+  { to: '/submit', label: '提出フォーム', resource: 'submit' },
+  { to: '/proposals', label: '提出済み一覧', resource: 'proposals' },
+  { to: '/approvals', label: '承認センター', resource: 'approvals' },
+  { to: '/confirmed', label: '確認済み一覧', resource: 'confirmed' },
+  { to: '/reports', label: 'レポート', resource: 'reports' },
+  { to: '/analytics', label: '分析・レポート', resource: 'analytics' },
+  { to: '/permissions', label: '権限設定', resource: 'permissions' },
+  { to: '/users', label: 'ユーザー管理', resource: 'user_management' },
 ]
 
 const auth = useAuth()
 const router = useRouter()
 
 const userLabel = computed(() => auth.state.employee?.name ?? auth.state.user ?? '未ログイン')
+
+const visibleNavItems = computed(() => {
+  return navItems.filter(item => auth.canView(item.resource))
+})
 
 const handleLogout = async () => {
   await auth.logout()
@@ -28,7 +34,13 @@ const handleLogout = async () => {
     <aside v-if="auth.state.isAuthenticated">
       <h1>改善提案</h1>
       <nav>
-        <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" class="nav-link" active-class="active">
+        <RouterLink 
+          v-for="item in visibleNavItems" 
+          :key="item.to" 
+          :to="item.to" 
+          class="nav-link" 
+          active-class="active"
+        >
           {{ item.label }}
         </RouterLink>
       </nav>

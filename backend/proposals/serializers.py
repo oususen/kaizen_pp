@@ -2,18 +2,23 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
     Department,
     Employee,
+    UserProfile,
+    UserPermission,
     ImprovementProposal,
     ProposalApproval,
 )
 from .services import fiscal
 from .services.identifiers import generate_management_no
 from .services.images import save_proposal_image
+
+User = get_user_model()
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -24,8 +29,112 @@ class DepartmentSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "level", "display_id", "parent", "parent_name"]
 
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    responsible_department_detail = DepartmentSerializer(source="responsible_department", read_only=True)
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+
+    class Meta:
+        model = UserProfile
+        fields = ["id", "role", "role_display", "responsible_department", "responsible_department_detail"]
+
+
+class UserSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source="employee_profile.name", read_only=True)
+    department_name = serializers.CharField(source="employee_profile.department.name", read_only=True)
+    profile = UserProfileSerializer(read_only=True)
+    permissions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "email", "employee_name", "department_name", "profile", "permissions"]
+
+    def get_permissions(self, obj):
+        # 既存の権限を返す
+        return UserPermissionSerializer(obj.permissions.all(), many=True).data
+
+
+class UserCreateUpdateSerializer(serializers.ModelSerializer):
+    """ユーザー作成・更新用のシリアライザー"""
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    profile_role = serializers.ChoiceField(
+        choices=UserProfile.ROLE_CHOICES,
+        required=False,
+        allow_null=True,
+        source='profile.role'
+    )
+    profile_responsible_department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        required=False,
+        allow_null=True,
+        source='profile.responsible_department'
+    )
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "email", "password", "profile_role", "profile_responsible_department"]
+
+    def create(self, validated_data):
+        profile_data = validated_data.pop('profile', {})
+        password = validated_data.pop('password', None)
+
+        user = User.objects.create(**validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+
+        # UserProfileを作成または更新
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={
+                'role': profile_data.get('role', 'staff'),
+                'responsible_department': profile_data.get('responsible_department'),
+            }
+        )
+
+        return user
+
+    def update(self, instance, validated_data):
+        profile_data = validated_data.pop('profile', {})
+        password = validated_data.pop('password', None)
+
+        # ユーザー情報を更新
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+
+        # UserProfileを更新
+        if profile_data:
+            UserProfile.objects.update_or_create(
+                user=instance,
+                defaults={
+                    'role': profile_data.get('role', 'staff'),
+                    'responsible_department': profile_data.get('responsible_department'),
+                }
+            )
+
+        return instance
+
+
+
+
+class UserPermissionSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    email = serializers.CharField(source="user.email", read_only=True)
+    employee_name = serializers.CharField(source="user.employee_profile.name", read_only=True)
+    department_name = serializers.CharField(source="user.employee_profile.department.name", read_only=True)
+
+    class Meta:
+        model = UserPermission
+        fields = ["id", "user", "username", "email", "employee_name", "department_name", "resource", "can_view", "can_edit"]
+
+
 class EmployeeSerializer(serializers.ModelSerializer):
     department_detail = DepartmentSerializer(source="department", read_only=True)
+    permissions = UserPermissionSerializer(many=True, read_only=True)
 
     class Meta:
         model = Employee
@@ -42,8 +151,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "team",
             "department",
             "department_detail",
+            "permissions",
         ]
         read_only_fields = ("is_active",)
+
 
 
 class ProposalApprovalSerializer(serializers.ModelSerializer):

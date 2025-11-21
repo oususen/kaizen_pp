@@ -4,6 +4,8 @@ from django.contrib import admin
 from .models import (
     Department,
     Employee,
+    UserProfile,
+    UserPermission,
     ImprovementProposal,
     Proposal,
     ProposalApproval,
@@ -143,3 +145,30 @@ class ProposalAdmin(admin.ModelAdmin):
         "committee_status",
     )
     search_fields = ("management_no", "title", "proposer_name")
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ("user", "role", "responsible_department", "created_at")
+    list_filter = ("role", "responsible_department")
+    search_fields = ("user__username", "user__email")
+    autocomplete_fields = ("user", "responsible_department")
+    fieldsets = (
+        ('基本情報', {
+            'fields': ('user', 'role')
+        }),
+        ('担当部署', {
+            'fields': ('responsible_department',),
+            'description': '班長: 班、係長: 係、部門長・課長・改善委員: 部・課を設定'
+        }),
+    )
+
+
+@admin.register(UserPermission)
+class UserPermissionAdmin(admin.ModelAdmin):
+    list_display = ("user", "resource", "can_view", "can_edit")
+    list_filter = ("resource", "can_view", "can_edit")
+    search_fields = ("user__username", "user__email", "resource")
+    autocomplete_fields = ("user",)
+
+

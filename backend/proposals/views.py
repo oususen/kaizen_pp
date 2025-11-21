@@ -14,13 +14,19 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Department, Employee, ImprovementProposal, ProposalApproval
+from django.contrib.auth import get_user_model
+from .models import Department, Employee, UserPermission, ImprovementProposal, ProposalApproval
 from .serializers import (
     ApprovalActionSerializer,
     DepartmentSerializer,
+    UserPermissionSerializer,
+    UserSerializer,
+    UserCreateUpdateSerializer,
     EmployeeSerializer,
     ImprovementProposalSerializer,
 )
+
+User = get_user_model()
 from .services import fiscal
 from .services.reports import generate_term_report
 
@@ -182,8 +188,20 @@ class CurrentEmployeeView(APIView):
         employee = getattr(request.user, "employee_profile", None)
         if not employee:
             return Response({"detail": "profile not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = EmployeeSerializer(employee)
-        return Response(serializer.data)
+
+        # EmployeeシリアライザーからユーザーPermissionsを取得
+        employee_data = EmployeeSerializer(employee).data
+
+        # ユーザーの権限を追加
+        user_permissions = UserPermissionSerializer(
+            request.user.permissions.all(),
+            many=True
+        ).data
+
+        # employee_dataのpermissionsを上書き
+        employee_data['permissions'] = user_permissions
+
+        return Response(employee_data)
 
 
 class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
@@ -244,6 +262,15 @@ class LoginView(APIView):
         login(request, user)
         employee = getattr(user, 'employee_profile', None)
         employee_data = EmployeeSerializer(employee).data if employee else None
+
+        # ユーザーの権限を追加
+        if employee_data:
+            user_permissions = UserPermissionSerializer(
+                user.permissions.all(),
+                many=True
+            ).data
+            employee_data['permissions'] = user_permissions
+
         return Response({'username': user.username, 'employee': employee_data})
 
 
@@ -253,4 +280,38 @@ class LogoutView(APIView):
     def post(self, request):
         logout(request)
         return Response({'detail': 'logged out'})
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.select_related(
+        "employee_profile__department",
+        "profile__responsible_department"
+    ).prefetch_related("permissions")
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        # 全てのアクティブなユーザーを返す
+        return super().get_queryset().filter(is_active=True)
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return UserCreateUpdateSerializer
+        return UserSerializer
+
+
+class UserPermissionViewSet(viewsets.ModelViewSet):
+    queryset = UserPermission.objects.select_related("user__employee_profile__department")
+    serializer_class = UserPermissionSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user_id = self.request.query_params.get("user")
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        return queryset
+
 

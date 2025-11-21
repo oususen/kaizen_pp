@@ -5,6 +5,7 @@ const state = reactive({
   isAuthenticated: false,
   user: null,
   employee: null,
+  permissions: [],
   loading: false,
   error: '',
   initialized: false,
@@ -14,12 +15,15 @@ const setAuth = (payload) => {
   if (payload?.employee) {
     state.employee = payload.employee
     state.user = payload.username ?? payload.employee?.name ?? null
+    state.permissions = payload.employee?.permissions ?? []
   } else if (payload) {
     state.employee = payload
     state.user = payload?.name ?? null
+    state.permissions = payload?.permissions ?? []
   } else {
     state.employee = null
     state.user = null
+    state.permissions = []
   }
   state.isAuthenticated = Boolean(state.employee)
 }
@@ -65,9 +69,22 @@ const logout = async () => {
   }
 }
 
+const canView = (resource) => {
+  const perm = state.permissions.find((p) => p.resource === resource)
+  return perm ? perm.can_view : true // Default to true if no permission set
+}
+
+const canEdit = (resource) => {
+  const perm = state.permissions.find((p) => p.resource === resource)
+  return perm ? perm.can_edit : true // Default to true if no permission set
+}
+
 export const useAuth = () => ({
   state,
   init,
   login,
   logout,
+  canView,
+  canEdit,
 })
+

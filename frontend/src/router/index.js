@@ -5,6 +5,8 @@ import ApprovalCenter from '../pages/ApprovalCenter.vue'
 import ConfirmedList from '../pages/ConfirmedList.vue'
 import ReportsPage from '../pages/ReportsPage.vue'
 import AnalyticsPage from '../pages/AnalyticsPage.vue'
+import PermissionSettings from '../pages/PermissionSettings.vue'
+import UserManagement from '../pages/UserManagement.vue'
 import LoginPage from '../pages/LoginPage.vue'
 import { useAuth } from '../stores/auth'
 
@@ -17,6 +19,8 @@ const routes = [
   { path: '/confirmed', component: ConfirmedList, meta: { title: '確認済み一覧' } },
   { path: '/reports', component: ReportsPage, meta: { title: 'レポート' } },
   { path: '/analytics', component: AnalyticsPage, meta: { title: '分析・レポート' } },
+  { path: '/permissions', component: PermissionSettings, meta: { title: '権限設定' } },
+  { path: '/users', component: UserManagement, meta: { title: 'ユーザー管理' } },
 ]
 
 const router = createRouter({
@@ -38,6 +42,24 @@ router.beforeEach(async (to, from, next) => {
   if (!auth.state.isAuthenticated) {
     return next({ path: '/login', query: { redirect: to.fullPath } })
   }
+
+  // Permission-based access control
+  const resourceMap = {
+    '/submit': 'submit',
+    '/proposals': 'proposals',
+    '/approvals': 'approvals',
+    '/confirmed': 'confirmed',
+    '/reports': 'reports',
+    '/analytics': 'analytics',
+    '/permissions': 'permissions',
+    '/users': 'user_management',
+  }
+
+  const resource = resourceMap[to.path]
+  if (resource && !auth.canView(resource)) {
+    return next('/submit')
+  }
+
   return next()
 })
 
