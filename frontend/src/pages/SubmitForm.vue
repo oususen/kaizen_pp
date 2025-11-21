@@ -177,6 +177,18 @@ const removeImage = (field, index) => {
   form[field].splice(index, 1)
 }
 
+const getImagePreviewUrl = (file) => {
+  try {
+    if (file instanceof File || file instanceof Blob) {
+      return URL.createObjectURL(file)
+    }
+    return ''
+  } catch (error) {
+    console.error('Failed to create object URL:', error)
+    return ''
+  }
+}
+
 const submitProposal = async () => {
   message.value = ''
   success.value = ''
@@ -339,7 +351,7 @@ onMounted(() => {
             />
             <div v-if="form.before_images.length > 0" class="image-preview-grid">
               <div v-for="(file, index) in form.before_images" :key="index" class="image-preview-item">
-                <img :src="URL.createObjectURL(file)" :alt="`改善前 ${index + 1}`" />
+                <img v-if="getImagePreviewUrl(file)" :src="getImagePreviewUrl(file)" :alt="`改善前 ${index + 1}`" />
                 <button type="button" @click="removeImage('before_images', index)" class="remove-btn">×</button>
                 <span class="image-name">{{ file.name }}</span>
               </div>
@@ -358,7 +370,7 @@ onMounted(() => {
             />
             <div v-if="form.after_images.length > 0" class="image-preview-grid">
               <div v-for="(file, index) in form.after_images" :key="index" class="image-preview-item">
-                <img :src="URL.createObjectURL(file)" :alt="`改善後 ${index + 1}`" />
+                <img v-if="getImagePreviewUrl(file)" :src="getImagePreviewUrl(file)" :alt="`改善後 ${index + 1}`" />
                 <button type="button" @click="removeImage('after_images', index)" class="remove-btn">×</button>
                 <span class="image-name">{{ file.name }}</span>
               </div>

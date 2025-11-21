@@ -185,6 +185,14 @@ class CurrentEmployeeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        # UserProfileベースのユーザーの場合
+        user_profile = getattr(request.user, "profile", None)
+        if user_profile:
+            # UserSerializerを使用してユーザー情報を返す
+            user_data = UserSerializer(request.user).data
+            return Response(user_data)
+
+        # 従来のEmployeeベースのユーザーの場合
         employee = getattr(request.user, "employee_profile", None)
         if not employee:
             return Response({"detail": "profile not found"}, status=status.HTTP_404_NOT_FOUND)

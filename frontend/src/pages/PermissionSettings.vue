@@ -136,7 +136,7 @@ onMounted(loadData)
             <td class="sticky-col">
               <div class="employee-info">
                 <strong>{{ user.username }}</strong>
-                <small>{{ user.employee_name ? `${user.employee_name} - ${user.department_name}` : user.email }}</small>
+                <small>{{ user.profile?.responsible_department_detail?.name || '担当部署未設定' }}</small>
               </div>
             </td>
             <template v-for="res in resources" :key="res.key">

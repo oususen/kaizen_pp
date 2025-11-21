@@ -19,8 +19,8 @@ router.register(r"employees", EmployeeViewSet)
 router.register(r"permissions", UserPermissionViewSet)
 router.register(r"improvement-proposals", ImprovementProposalViewSet, basename="improvement-proposals")
 
-urlpatterns = router.urls + [
+urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='auth-login'),
     path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path("employees/me/", CurrentEmployeeView.as_view(), name="employees-me"),
-]
+] + router.urls
