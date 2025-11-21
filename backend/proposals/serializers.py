@@ -48,7 +48,20 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProfile
-        fields = ["id", "role", "role_display", "responsible_department", "responsible_department_detail"]
+        fields = [
+            "id",
+            "role",
+            "role_display",
+            "responsible_department",
+            "responsible_department_detail",
+            "smtp_host",
+            "smtp_port",
+            "smtp_user",
+            "smtp_password",
+        ]
+        extra_kwargs = {
+            'smtp_password': {'write_only': True}
+        }
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -83,10 +96,26 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
         allow_null=True,
         source='profile.responsible_department'
     )
+    smtp_host = serializers.CharField(required=False, allow_blank=True, source='profile.smtp_host')
+    smtp_port = serializers.IntegerField(required=False, allow_null=True, source='profile.smtp_port')
+    smtp_user = serializers.CharField(required=False, allow_blank=True, source='profile.smtp_user')
+    smtp_password = serializers.CharField(write_only=True, required=False, allow_blank=True, source='profile.smtp_password')
 
     class Meta:
         model = User
-        fields = ["id", "username", "name", "email", "password", "profile_role", "profile_responsible_department"]
+        fields = [
+            "id",
+            "username",
+            "name",
+            "email",
+            "password",
+            "profile_role",
+            "profile_responsible_department",
+            "smtp_host",
+            "smtp_port",
+            "smtp_user",
+            "smtp_password",
+        ]
 
     def create(self, validated_data):
         profile_data = validated_data.pop('profile', {})
@@ -103,6 +132,10 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
             defaults={
                 'role': profile_data.get('role', 'staff'),
                 'responsible_department': profile_data.get('responsible_department'),
+                'smtp_host': profile_data.get('smtp_host', ''),
+                'smtp_port': profile_data.get('smtp_port'),
+                'smtp_user': profile_data.get('smtp_user', ''),
+                'smtp_password': profile_data.get('smtp_password', ''),
             }
         )
 
@@ -123,12 +156,23 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
 
         # UserProfileを更新
         if profile_data:
+            profile_defaults = {
+                'role': profile_data.get('role', 'staff'),
+                'responsible_department': profile_data.get('responsible_department'),
+            }
+            # SMTP設定がある場合のみ更新
+            if 'smtp_host' in profile_data:
+                profile_defaults['smtp_host'] = profile_data.get('smtp_host', '')
+            if 'smtp_port' in profile_data:
+                profile_defaults['smtp_port'] = profile_data.get('smtp_port')
+            if 'smtp_user' in profile_data:
+                profile_defaults['smtp_user'] = profile_data.get('smtp_user', '')
+            if 'smtp_password' in profile_data:
+                profile_defaults['smtp_password'] = profile_data.get('smtp_password', '')
+
             UserProfile.objects.update_or_create(
                 user=instance,
-                defaults={
-                    'role': profile_data.get('role', 'staff'),
-                    'responsible_department': profile_data.get('responsible_department'),
-                }
+                defaults=profile_defaults
             )
 
         return instance

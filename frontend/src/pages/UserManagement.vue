@@ -15,6 +15,7 @@ const roleOptions = [
   { value: 'manager', label: '部門長・課長' },
   { value: 'committee', label: '改善委員' },
   { value: 'committee_chair', label: '改善委員長' },
+  { value: 'admin', label: 'システム管理者' },
 ]
 
 const showModal = ref(false)
@@ -26,6 +27,10 @@ const formData = ref({
   password: '',
   profile_role: 'staff',
   profile_responsible_department: null,
+  smtp_host: '',
+  smtp_port: null,
+  smtp_user: '',
+  smtp_password: '',
 })
 
 const responsibleDepartments = computed(() => {
@@ -39,6 +44,9 @@ const responsibleDepartments = computed(() => {
   } else if (role === 'manager' || role === 'committee' || role === 'committee_chair') {
     // 部門長・課長・改善委員・改善委員長: 部・課のみ
     return departments.value.filter(d => d.level === 'division' || d.level === 'section')
+  } else if (role === 'admin') {
+    // システム管理者: 担当部署不要
+    return []
   }
   return []
 })
@@ -66,6 +74,10 @@ const openCreateModal = () => {
     password: '',
     profile_role: 'staff',
     profile_responsible_department: null,
+    smtp_host: '',
+    smtp_port: null,
+    smtp_user: '',
+    smtp_password: '',
   }
   showModal.value = true
 }
@@ -79,6 +91,10 @@ const openEditModal = (user) => {
     password: '',
     profile_role: user.profile?.role || 'staff',
     profile_responsible_department: user.profile?.responsible_department || null,
+    smtp_host: user.profile?.smtp_host || '',
+    smtp_port: user.profile?.smtp_port || null,
+    smtp_user: user.profile?.smtp_user || '',
+    smtp_password: '',
   }
   showModal.value = true
 }
@@ -111,10 +127,17 @@ const saveUser = async () => {
       email: formData.value.email,
       profile_role: formData.value.profile_role,
       profile_responsible_department: formData.value.profile_responsible_department,
+      smtp_host: formData.value.smtp_host,
+      smtp_port: formData.value.smtp_port,
+      smtp_user: formData.value.smtp_user,
     }
 
     if (formData.value.password) {
       payload.password = formData.value.password
+    }
+
+    if (formData.value.smtp_password) {
+      payload.smtp_password = formData.value.smtp_password
     }
 
     if (editingUser.value) {
@@ -277,6 +300,55 @@ onMounted(() => {
             <small class="hint">
               役職に応じた部署のみ選択できます
             </small>
+          </div>
+
+          <h3 style="margin-top: 2rem; margin-bottom: 1rem; color: #374151;">メール送信設定（SMTP）</h3>
+
+          <div class="form-group">
+            <label>SMTPホスト</label>
+            <input
+              v-model="formData.smtp_host"
+              type="text"
+              :disabled="!canEditUsers"
+              placeholder="例: smtp.gmail.com"
+            />
+            <small class="hint">SMTPサーバーのホスト名</small>
+          </div>
+
+          <div class="form-group">
+            <label>SMTPポート</label>
+            <input
+              v-model.number="formData.smtp_port"
+              type="number"
+              :disabled="!canEditUsers"
+              placeholder="例: 587"
+            />
+            <small class="hint">SMTPポート番号（通常 587 または 465）</small>
+          </div>
+
+          <div class="form-group">
+            <label>SMTP認証ユーザー</label>
+            <input
+              v-model="formData.smtp_user"
+              type="text"
+              :disabled="!canEditUsers"
+              placeholder="例: user@example.com"
+            />
+            <small class="hint">SMTP認証に使用するユーザー名またはメールアドレス</small>
+          </div>
+
+          <div class="form-group">
+            <label>
+              SMTP認証パスワード
+              <span v-if="editingUser" class="hint">（変更する場合のみ入力）</span>
+            </label>
+            <input
+              v-model="formData.smtp_password"
+              type="password"
+              :disabled="!canEditUsers"
+              placeholder="パスワード"
+            />
+            <small class="hint">SMTP認証に使用するパスワード</small>
           </div>
 
           <div class="form-actions">

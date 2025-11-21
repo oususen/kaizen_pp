@@ -354,6 +354,35 @@ class UserProfile(models.Model):
         help_text="担当する部署（班長は班、係長は係、部門長・課長・改善委員は部・課）"
     )
 
+    # メール送信設定（SMTP）
+    smtp_host = models.CharField(
+        "SMTPホスト",
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="SMTPサーバーのホスト名（例: smtp.gmail.com）"
+    )
+    smtp_port = models.IntegerField(
+        "SMTPポート",
+        null=True,
+        blank=True,
+        help_text="SMTPポート番号（例: 587）"
+    )
+    smtp_user = models.CharField(
+        "SMTP認証ユーザー",
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="SMTP認証に使用するユーザー名またはメールアドレス"
+    )
+    smtp_password = models.CharField(
+        "SMTP認証パスワード",
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="SMTP認証に使用するパスワード"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
