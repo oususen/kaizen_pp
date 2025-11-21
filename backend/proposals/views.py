@@ -94,10 +94,20 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         stage_choices = dict(ProposalApproval.Stage.choices)
         status_choices = dict(ProposalApproval.Status.choices)
 
-        if stage in stage_choices:
-            queryset = queryset.filter(approvals__stage=stage)
-            if status_value in status_choices:
-                queryset = queryset.filter(approvals__status=status_value)
+        if stage in stage_choices and status_value in status_choices:
+            # Filter for the current stage's status.
+            queryset = queryset.filter(approvals__stage=stage, approvals__status=status_value)
+
+            # Ensure all preceding stages are approved.
+            stages_order = [s[0] for s in ProposalApproval.Stage.choices]
+            if stage in stages_order:
+                current_stage_index = stages_order.index(stage)
+                for i in range(current_stage_index):
+                    preceding_stage = stages_order[i]
+                    queryset = queryset.filter(
+                        approvals__stage=preceding_stage,
+                        approvals__status=ProposalApproval.Status.APPROVED,
+                    )
             queryset = queryset.distinct()
         elif status_value == "completed":
             queryset = queryset.filter(approved_count=F("total_approvals"))
@@ -106,19 +116,34 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
+        from django.core.mail import send_mail
+        from django.conf import settings
+
         proposal = self.get_object()
         serializer = ApprovalActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         stage = data["stage"]
+        status_val = data["status"]
+
         approval = ProposalApproval.objects.filter(proposal=proposal, stage=stage).first()
         if not approval:
             return Response({"detail": "Invalid stage"}, status=status.HTTP_400_BAD_REQUEST)
-        approval.status = data["status"]
+
+        approval.status = status_val
         approval.comment = data.get("comment", "")
         approval.confirmed_name = data["confirmed_name"]
         approval.confirmed_at = timezone.now()
-        approval.confirmed_by = getattr(request.user, "employee_profile", None)
+        
+        # ログインユーザーのUserProfileまたはEmployee Profileを取得
+        user = request.user
+        if hasattr(user, 'profile'):
+            # UserProfileベース
+            pass  # 特に追加で紐付ける情報がない場合は何もしない
+        elif hasattr(user, 'employee_profile'):
+            # Employeeベース
+            approval.confirmed_by = user.employee_profile
+            
         scores = data.get("scores") or {}
         if stage in {ProposalApproval.Stage.MANAGER, ProposalApproval.Stage.COMMITTEE}:
             approval.mindset_score = scores.get("mindset")
@@ -126,7 +151,79 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             approval.hint_score = scores.get("hint")
         else:
             approval.mindset_score = approval.idea_score = approval.hint_score = None
+        
         approval.save()
+
+        # メール送信ロジック
+        if status_val == ProposalApproval.Status.APPROVED:
+            stages_order = [s.value for s in ProposalApproval.Stage]
+            current_stage_index = stages_order.index(stage)
+            
+            if current_stage_index + 1 < len(stages_order):
+                next_stage = stages_order[current_stage_index + 1]
+                
+                # `UserProfile` の `role` と `responsible_department` を使って次の承認者を見つける
+                # `Employee` は古いモデルなので `UserProfile` を優先
+                
+                next_approvers_query = Q()
+                role_map = {
+                    "supervisor": "supervisor",
+                    "chief": "chief",
+                    "manager": "manager",
+                    "committee": "committee",
+                    "committee_chair": "committee_chair"
+                }
+                next_role = role_map.get(next_stage)
+
+                if next_role:
+                    department_q = Q()
+                    if next_role == 'supervisor' and proposal.team:
+                        department_q = Q(profile__responsible_department=proposal.team)
+                    elif next_role == 'chief' and proposal.group:
+                        department_q = Q(profile__responsible_department=proposal.group)
+                    elif next_role == 'manager' and proposal.section:
+                        department_q = Q(profile__responsible_department=proposal.section)
+                    elif next_role == 'manager' and proposal.department:
+                         department_q = Q(profile__responsible_department=proposal.department)
+                    elif next_role in ['committee', 'committee_chair'] and proposal.section:
+                        department_q = Q(profile__responsible_department=proposal.section)
+                    elif next_role in ['committee', 'committee_chair'] and proposal.department:
+                        department_q = Q(profile__responsible_department=proposal.department)
+
+                    if department_q:
+                        next_approvers_query = Q(profile__role=next_role) & department_q
+                
+                # システム管理者にも通知
+                next_approvers_query |= Q(profile__role='admin')
+
+                if next_approvers_query:
+                    next_approvers = User.objects.filter(next_approvers_query, is_active=True, email__isnull=False).exclude(email__exact='')
+                    
+                    recipient_list = [u.email for u in next_approvers]
+                    if recipient_list:
+                        subject = f"【改善提案】承認依頼: {proposal.management_no}"
+                        message = f"""
+                        改善提案が承認され、あなたの確認待ちです。
+                        
+                        管理番号: {proposal.management_no}
+                        提案者: {proposal.proposer_name}
+                        テーマ: {proposal.deployment_item}
+                        
+                        下記URLより内容を確認し、承認処理をお願いします。
+                        {settings.FRONTEND_URL}/approval-center
+                        """
+                        try:
+                            send_mail(
+                                subject,
+                                message,
+                                settings.DEFAULT_FROM_EMAIL,
+                                recipient_list,
+                                fail_silently=False,
+                            )
+                        except Exception as e:
+                            # In a real app, you'd want to log this error
+                            print(f"Error sending email: {e}")
+
         refreshed = self.get_serializer(proposal)
         return Response(refreshed.data)
 
