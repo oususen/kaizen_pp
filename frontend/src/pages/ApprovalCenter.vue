@@ -8,10 +8,9 @@ const auth = useAuth()
 const stages = [
   { value: 'supervisor', label: '班長' },
   { value: 'chief', label: '係長' },
-  { value: 'manager', label: '部長/課長' },
+  { value: 'manager', label: '課長/部長' },
   { value: 'committee', label: '改善委員' },
 ]
-
 const selectedStage = ref(null)
 const proposals = ref([])
 const selectedProposal = ref(null)
@@ -39,12 +38,12 @@ const allowedStages = computed(() => {
     case 'supervisor':
       return ['supervisor']
     case 'chief':
-      return ['chief']
+      return ['supervisor', 'chief']
     case 'manager':
-      return ['manager']
+      return ['supervisor', 'chief', 'manager']
     case 'committee':
     case 'committee_chair':
-      return ['committee']
+      return ['supervisor', 'chief', 'manager', 'committee']
     default:
       return []
   }
