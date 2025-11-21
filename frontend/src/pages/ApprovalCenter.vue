@@ -47,6 +47,8 @@ const allowedStages = computed(() => {
     case 'committee_chair':
       return ['committee']
       // return ['supervisor', 'chief', 'manager', 'committee']
+    case 'admin':
+      return ['supervisor', 'chief', 'manager', 'committee']
     default:
       return []
   }
@@ -83,6 +85,11 @@ const filteredProposals = computed(() => {
   const userProfile = auth.state.employee?.profile || auth.state.employee
   const role = userProfile?.role
   const dept = userProfile?.responsible_department || userProfile?.department
+
+  // システム管理者は全ての提案を閲覧可能
+  if (role === 'admin') {
+    return proposals.value.filter((p) => lowerStagesApproved(p))
+  }
 
   if (!role || !dept) {
     return proposals.value.filter((p) => lowerStagesApproved(p))

@@ -82,13 +82,20 @@ const logout = async () => {
 
 const defaultViewAllow = new Set(['submit', 'proposals'])
 
+const isAdmin = () => {
+  const role = state.employee?.profile?.role || state.employee?.role
+  return role === 'admin'
+}
+
 const canView = (resource) => {
+  if (isAdmin()) return true
   const perm = state.permissions.find((p) => p.resource === resource)
   if (perm) return perm.can_view
   return defaultViewAllow.has(resource)
 }
 
 const canEdit = (resource) => {
+  if (isAdmin()) return true
   const perm = state.permissions.find((p) => p.resource === resource)
   return perm ? perm.can_edit : false // Default edit is閉じる
 }

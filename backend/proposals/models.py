@@ -133,6 +133,7 @@ class Employee(models.Model):
         CHIEF = "chief", "係長"
         MANAGER = "manager", "部門長"
         COMMITTEE = "committee", "改善委員"
+        ADMIN = "admin", "システム管理者"
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -325,6 +326,7 @@ class UserProfile(models.Model):
         ("manager", "部門長・課長"),
         ("committee", "改善委員"),
         ("committee_chair", "改善委員長"),
+        ("admin", "システム管理者"),
     ]
 
     user = models.OneToOneField(
