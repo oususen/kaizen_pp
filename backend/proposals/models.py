@@ -291,6 +291,30 @@ class ProposalApproval(models.Model):
         return f"{self.proposal.management_no} / {self.stage}"
 
 
+class ProposalImage(models.Model):
+    """改善提案に紐づく複数画像を保持する。"""
+
+    class Kind(models.TextChoices):
+        BEFORE = "before", "改善前"
+        AFTER = "after", "改善後"
+
+    proposal = models.ForeignKey(
+        ImprovementProposal,
+        on_delete=models.CASCADE,
+        related_name="images",
+    )
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    image_path = models.CharField("画像パス", max_length=255)
+    display_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["proposal_id", "kind", "display_order", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.proposal.management_no} {self.kind} #{self.display_order}"
+
+
 class UserProfile(models.Model):
     """ユーザーの役職・担当部署情報."""
 

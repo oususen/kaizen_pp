@@ -217,8 +217,8 @@ const submitProposal = async () => {
       contribution_business: form.contribution_business.join(', '),
       comment: form.comment,
       reduction_hours: form.reduction_hours,
-      before_image: form.before_images[0] || null,  // 最初の画像をbefore_imageとして送信
-      after_image: form.after_images[0] || null,    // 最初の画像をafter_imageとして送信
+      before_images: form.before_images,
+      after_images: form.after_images,
     }
     await createProposal(formData)
     success.value = '改善提案を提出しました'

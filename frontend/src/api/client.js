@@ -99,7 +99,21 @@ export const fetchProposals = async (params = {}) => {
 
 export const createProposal = (payload) => {
   const formData = new FormData()
+  const appendFiles = (files, key) => {
+    if (Array.isArray(files)) {
+      files.forEach((file) => {
+        if (file instanceof File || file instanceof Blob) {
+          formData.append(key, file)
+        }
+      })
+    }
+  }
+  appendFiles(payload.before_images, 'before_images')
+  appendFiles(payload.after_images, 'after_images')
   Object.entries(payload).forEach(([key, value]) => {
+    if (key === 'before_images' || key === 'after_images') {
+      return
+    }
     if (value === undefined || value === null || value === '') {
       return
     }

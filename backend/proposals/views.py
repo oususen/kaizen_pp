@@ -53,7 +53,7 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             ImprovementProposal.objects.select_related(
                 "department", "section", "group", "team", "proposer", "created_by"
             )
-            .prefetch_related("approvals__confirmed_by")
+            .prefetch_related("approvals__confirmed_by", "images")
             .annotate(
                 total_approvals=Count("approvals", distinct=True),
                 approved_count=Count(

@@ -93,6 +93,19 @@ const closeDetail = () => {
   selectedProposal.value = null
 }
 
+const normalizedImages = (kind) => {
+  const proposal = selectedProposal.value
+  if (!proposal) return []
+  const key = `${kind}_images`
+  const images = Array.isArray(proposal[key]) ? proposal[key] : []
+  if (images.length > 0) return images
+  const singlePath = proposal[`${kind}_image_path`]
+  return singlePath ? [{ id: `legacy-${kind}`, url: singlePath, path: singlePath, filename: singlePath }] : []
+}
+
+const beforeImages = computed(() => normalizedImages('before'))
+const afterImages = computed(() => normalizedImages('after'))
+
 const openApprovalDialog = () => {
   if (!selectedProposal.value) return
   dialogOpen.value = true
@@ -264,16 +277,16 @@ onMounted(loadProposals)
             </div>
           </div>
 
-          <div v-if="selectedProposal.before_image_path || selectedProposal.after_image_path" class="detail-section">
+          <div v-if="beforeImages.length || afterImages.length" class="detail-section">
             <h3>画像</h3>
             <div class="images-grid">
-              <div v-if="selectedProposal.before_image_path" class="image-item">
+              <div v-for="image in beforeImages" :key="`before-${image.id || image.path}`" class="image-item">
                 <label>改善前</label>
-                <img :src="selectedProposal.before_image_path" alt="改善前" />
+                <img :src="image.url || image.path || image" alt="改善前" />
               </div>
-              <div v-if="selectedProposal.after_image_path" class="image-item">
+              <div v-for="image in afterImages" :key="`after-${image.id || image.path}`" class="image-item">
                 <label>改善後</label>
-                <img :src="selectedProposal.after_image_path" alt="改善後" />
+                <img :src="image.url || image.path || image" alt="改善後" />
               </div>
             </div>
           </div>

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -13,12 +15,23 @@ from .models import (
     UserPermission,
     ImprovementProposal,
     ProposalApproval,
+    ProposalImage,
 )
 from .services import fiscal
 from .services.identifiers import generate_management_no
 from .services.images import save_proposal_image
 
 User = get_user_model()
+
+
+def build_media_url(request, path: str | None) -> str:
+    """Return absolute media URL for stored relative image paths."""
+    if not path:
+        return ""
+    if isinstance(path, str) and path.startswith("http"):
+        return path
+    media_path = f"{settings.MEDIA_URL.rstrip('/')}/{str(path).lstrip('/')}"
+    return request.build_absolute_uri(media_path) if request else media_path
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -180,6 +193,23 @@ class ProposalApprovalSerializer(serializers.ModelSerializer):
         read_only_fields = ("confirmed_at", "confirmed_by")
 
 
+class ProposalImageSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    filename = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProposalImage
+        fields = ["id", "kind", "image_path", "display_order", "url", "filename", "created_at"]
+        read_only_fields = fields
+
+    def get_url(self, obj):
+        request = self.context.get("request")
+        return build_media_url(request, obj.image_path)
+
+    def get_filename(self, obj):
+        return Path(obj.image_path).name
+
+
 class ImprovementProposalSerializer(serializers.ModelSerializer):
     department_detail = DepartmentSerializer(source="department", read_only=True)
     section_detail = DepartmentSerializer(source="section", read_only=True)
@@ -189,6 +219,9 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
     approvals = ProposalApprovalSerializer(many=True, read_only=True)
     before_image = serializers.ImageField(write_only=True, required=False)
     after_image = serializers.ImageField(write_only=True, required=False)
+    images = ProposalImageSerializer(many=True, read_only=True)
+    before_images = serializers.SerializerMethodField()
+    after_images = serializers.SerializerMethodField()
     current_stage = serializers.SerializerMethodField()
     is_completed = serializers.SerializerMethodField()
     term = serializers.SerializerMethodField()
@@ -228,6 +261,9 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "hint_score",
             "before_image_path",
             "after_image_path",
+            "images",
+            "before_images",
+            "after_images",
             "before_image",
             "after_image",
             "created_at",
@@ -247,6 +283,9 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "effect_amount",
             "before_image_path",
             "after_image_path",
+            "images",
+            "before_images",
+            "after_images",
             "created_at",
             "updated_at",
         )
@@ -268,6 +307,46 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(errors)
         return attrs
 
+    def _collect_files(self, request, single_key: str, list_key: str):
+        files = []
+        if request and hasattr(request, "FILES"):
+            files.extend(request.FILES.getlist(list_key) or [])
+            single = request.FILES.get(single_key)
+            if single:
+                files.append(single)
+        return files
+
+    def _save_images(self, proposal: ImprovementProposal, files, kind: ProposalImage.Kind):
+        saved_paths = []
+        for idx, file_obj in enumerate(files):
+            saved_path = save_proposal_image(file_obj, proposal.management_no, kind, suffix=str(idx + 1))
+            ProposalImage.objects.create(
+                proposal=proposal,
+                kind=kind,
+                image_path=saved_path,
+                display_order=idx,
+            )
+            saved_paths.append(saved_path)
+        return saved_paths
+
+    def _get_images_for_kind(self, obj: ImprovementProposal, kind: ProposalImage.Kind):
+        images = getattr(obj, '_prefetched_objects_cache', {}).get('images')
+        if images is None:
+            images = list(obj.images.all())
+        filtered = [img for img in images if img.kind == kind]
+        filtered.sort(key=lambda i: (i.display_order, i.id))
+        request = self.context.get("request")
+        return [
+            {
+                "id": img.id,
+                "path": img.image_path,
+                "url": build_media_url(request, img.image_path),
+                "filename": Path(img.image_path).name,
+                "order": img.display_order,
+            }
+            for img in filtered
+        ]
+
     def create(self, validated_data):
         before_image = validated_data.pop("before_image", None)
         after_image = validated_data.pop("after_image", None)
@@ -283,12 +362,23 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             validated_data["effect_amount"] = Decimal("1700") * reduction_hours
         proposal = super().create(validated_data)
         updated_fields = []
-        if before_image:
-            proposal.before_image_path = save_proposal_image(before_image, proposal.management_no, "before")
+        before_files = self._collect_files(request, "before_image", "before_images")
+        after_files = self._collect_files(request, "after_image", "after_images")
+        if not before_files and before_image:
+            before_files = [before_image]
+        if not after_files and after_image:
+            after_files = [after_image]
+
+        before_paths = self._save_images(proposal, before_files, ProposalImage.Kind.BEFORE) if before_files else []
+        after_paths = self._save_images(proposal, after_files, ProposalImage.Kind.AFTER) if after_files else []
+
+        if before_paths:
+            proposal.before_image_path = before_paths[0]
             updated_fields.append("before_image_path")
-        if after_image:
-            proposal.after_image_path = save_proposal_image(after_image, proposal.management_no, "after")
+        if after_paths:
+            proposal.after_image_path = after_paths[0]
             updated_fields.append("after_image_path")
+
         if updated_fields:
             proposal.save(update_fields=updated_fields)
         for stage, _ in ProposalApproval.Stage.choices:
@@ -303,12 +393,24 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             validated_data["effect_amount"] = Decimal("1700") * reduction_hours
         proposal = super().update(instance, validated_data)
         updated_fields = []
-        if before_image:
-            proposal.before_image_path = save_proposal_image(before_image, proposal.management_no, "before")
+        request = self.context.get("request")
+        before_files = self._collect_files(request, "before_image", "before_images")
+        after_files = self._collect_files(request, "after_image", "after_images")
+        if not before_files and before_image:
+            before_files = [before_image]
+        if not after_files and after_image:
+            after_files = [after_image]
+
+        before_paths = self._save_images(proposal, before_files, ProposalImage.Kind.BEFORE) if before_files else []
+        after_paths = self._save_images(proposal, after_files, ProposalImage.Kind.AFTER) if after_files else []
+
+        if before_paths:
+            proposal.before_image_path = before_paths[0]
             updated_fields.append("before_image_path")
-        if after_image:
-            proposal.after_image_path = save_proposal_image(after_image, proposal.management_no, "after")
+        if after_paths:
+            proposal.after_image_path = after_paths[0]
             updated_fields.append("after_image_path")
+
         if updated_fields:
             proposal.save(update_fields=updated_fields)
         return proposal
@@ -353,6 +455,23 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         approvals = self._get_approvals(obj)
         approval = next((a for a in approvals if a.stage == ProposalApproval.Stage.COMMITTEE), None)
         return approval.status if approval else ProposalApproval.Status.PENDING
+
+    def get_before_images(self, obj: ImprovementProposal):
+        return self._get_images_for_kind(obj, ProposalImage.Kind.BEFORE)
+
+    def get_after_images(self, obj: ImprovementProposal):
+        return self._get_images_for_kind(obj, ProposalImage.Kind.AFTER)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        data["before_image_path"] = build_media_url(request, data.get("before_image_path"))
+        data["after_image_path"] = build_media_url(request, data.get("after_image_path"))
+        if not data.get("before_image_path") and data.get("before_images"):
+            data["before_image_path"] = data["before_images"][0].get("url") or ""
+        if not data.get("after_image_path") and data.get("after_images"):
+            data["after_image_path"] = data["after_images"][0].get("url") or ""
+        return data
 
 
 class ApprovalActionSerializer(serializers.Serializer):

@@ -52,7 +52,7 @@ python manage.py runserver 0.0.0.0:8001
 cd frontend
 cp .env.example .env   # 既定で /api を使用
 npm install
-npm run dev -- --host  # http://localhost:5000
+npm run dev -- --host 0.0.0.0 # http://localhost:5000
 ```
 
 ビルド: `npm run build`（`dist/` を生成）、ローカルプレビュー: `npm run preview`。
