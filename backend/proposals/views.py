@@ -150,6 +150,30 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         response["Content-Disposition"] = f"attachment; filename={filename}"
         return response
 
+    @action(detail=False, methods=["get"], url_path="analytics")
+    def analytics(self, request):
+        term_value = request.query_params.get("term")
+        if term_value is None:
+            return Response({"detail": "term parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            term_number = int(term_value)
+        except ValueError:
+            return Response({"detail": "term must be integer"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        start_date, end_date = fiscal.term_date_range(term_number)
+        start_dt = datetime.combine(start_date, time.min)
+        end_dt = datetime.combine(end_date, time.max)
+        
+        proposals = (
+            ImprovementProposal.objects.filter(submitted_at__range=(start_dt, end_dt))
+            .select_related("department", "section", "group", "team", "proposer")
+            .prefetch_related("approvals__confirmed_by")
+        )
+        
+        from .services.reports import get_analytics_summary
+        data = get_analytics_summary(proposals, term_number)
+        return Response(data)
+
 
 class CurrentEmployeeView(APIView):
     permission_classes = [IsAuthenticated]

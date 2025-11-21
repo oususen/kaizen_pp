@@ -4,6 +4,7 @@ import ProposalList from '../pages/ProposalList.vue'
 import ApprovalCenter from '../pages/ApprovalCenter.vue'
 import ConfirmedList from '../pages/ConfirmedList.vue'
 import ReportsPage from '../pages/ReportsPage.vue'
+import AnalyticsPage from '../pages/AnalyticsPage.vue'
 import LoginPage from '../pages/LoginPage.vue'
 import { useAuth } from '../stores/auth'
 
@@ -15,6 +16,7 @@ const routes = [
   { path: '/approvals', component: ApprovalCenter, meta: { title: '承認センター' } },
   { path: '/confirmed', component: ConfirmedList, meta: { title: '確認済み一覧' } },
   { path: '/reports', component: ReportsPage, meta: { title: 'レポート' } },
+  { path: '/analytics', component: AnalyticsPage, meta: { title: '分析・レポート' } },
 ]
 
 const router = createRouter({

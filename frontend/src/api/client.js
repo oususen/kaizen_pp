@@ -133,6 +133,10 @@ export const exportTermReport = async (term) => {
   return response.blob()
 }
 
+export const fetchAnalytics = async (term) => {
+  return request(`/improvement-proposals/analytics/?term=${term}`)
+}
+
 export const fetchConfirmed = () => fetchProposals({ status: 'completed' })
 export const loginUser = (credentials) =>
   request('/auth/login/', {

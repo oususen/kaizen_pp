@@ -1,79 +1,71 @@
-# 改善提案ワークフロー（Django + Vue）
+# 改善提案ワークフロー（Django + Vue3）
 
-要件定義に基づき、改善提案を登録・多段階で承認できる Web アプリケーションを Django REST API と Vue（Vite）で構築しました。  
-バックエンドは組織階層/提案/承認ステータスを管理し、フロントエンドは提案登録フォームと承認 UI を提供します。
+改善提案の登録・レビュー・承認を行うシステムです。バックエンドは Django REST + MySQL、フロントは Vite + Vue3 で動作します。ERP_jp と同じ JWT ログイン/リフレッシュ API 互換を持たせています。
 
 ## ディレクトリ構成
 
-```
-backend/        Django プロジェクト (kaizen_backend) と API アプリ (proposals)
-frontend/       Vue 3 (Vite) ベースの SPA
-requirements.txt  Python 依存ライブラリ
-frontend/.env.example  API エンドポイント設定例
+- `backend/` : Django プロジェクト（kaizen_backend）とアプリ `proposals`
+- `frontend/` : Vue3 (Vite) SPA
+- `proposal_images/` : 登録済み提案の画像置き場
+- `requirements.txt` : Python 依存
+- `frontend/.env` : API ベースURL（既定 `/api`、Vite 開発サーバで `/api` を 8001 にプロキシ）
+
+## バックエンドの起動（API）
+
+前提: Python 3.10+ / MySQL。
+ルートディレクトリに `.env` ファイルを作成し、以下の環境変数を設定してください（`config.py` がこれを読み込みます）。
+
+```ini
+PRIMARY_DB_HOST=localhost
+PRIMARY_DB_PORT=3306
+PRIMARY_DB_USER=root
+PRIMARY_DB_PASSWORD=your_password
+PRIMARY_DB_NAME=kaizen_db
 ```
 
-## 1. バックエンド（Django REST）
-
-### 1.1 セットアップ
+起動手順:
 
 ```bash
 cd backend
-python -m venv venv        # 既存環境があれば省略
+python -m venv venv
 venv\Scripts\activate
 pip install -r ..\requirements.txt
 python manage.py migrate
+python manage.py runserver 0.0.0.0:8001
 ```
 
-### 1.2 開発サーバー
+主なエンドポイント（プレフィックス `/api/`）:
+- `user/get_token/` : JWT 発行（username/password）
+- `user/refresh_token/` : リフレッシュ
+- `user/info/` : ログインユーザ情報
+- `improvement-proposals/` : 改善提案 CRUD
+- `improvement-proposals/<id>/approve/` : 段階承認
+- `departments/`, `employees/`, `employees/me/`
 
-```bash
-python manage.py runserver 0.0.0.0:8000
-```
+管理画面: `http://localhost:8001/admin/`（必要なら `createsuperuser` で管理者を作成）。
 
-エンドポイント例
+## フロントエンドの起動（SPA）
 
-- `GET /api/departments/` … 組織一覧
-- `GET/POST /api/proposals/` … 提案の一覧/作成（`stage`/`status` クエリで絞り込み）
-- `POST /api/proposals/<id>/approve/` … 指定ステージの承認/差し戻し（`stage`, `status`, `comment`, `score`）
-
-### 1.3 管理画面
-
-```bash
-python manage.py createsuperuser
-python manage.py runserver
-```
-
-`http://localhost:8000/admin/` から部門マスタや提案レコードを GUI で操作できます。
-
-## 2. フロントエンド（Vue 3 + Vite）
-
-### 2.1 必要条件
-
-Vite 7 系は **Node.js 20.19 以上**（もしくは 22.12 以上）が必須です。  
-現状 Node 18 でも `npm run dev` は動作しますが、`npm run build` は失敗します。ビルドを行う場合は Node をアップデートしてください。
-
-### 2.2 セットアップ
+前提: Node.js 20+ 推奨。Vite 開発サーバはポート 5000 で起動し、`/api` へのリクエストをバックエンド（8001）にプロキシします。
 
 ```bash
 cd frontend
-cp .env.example .env    # API の URL を必要に応じて変更
+cp .env.example .env   # 既定で /api を使用
 npm install
-npm run dev             # http://localhost:5173
+npm run dev -- --host  # http://localhost:5000
 ```
 
-画面上では
+ビルド: `npm run build`（`dist/` を生成）、ローカルプレビュー: `npm run preview`。
 
-- 提案登録フォーム
-- ステージ/ステータスで絞り込める一覧
-- 各ステージの承認入力フォーム（課長/部長段階では 3 つの採点項目付き）
+## 認証の流れ（ERP互換）
 
-を利用できます。API ベース URL を変更したい場合は `.env` の `VITE_API_BASE` を編集してください。
+- フロントは `user/get_token/` で JWT を取得し、localStorage に保存。
+- API 呼び出しは Authorization: Bearer を自動付与、401 時は `user/refresh_token/` で再取得。
+- `user/info/` でプロフィールを読み込み、`/login` でログイン画面にリダイレクト。
 
-## 3. 補足
+## よくある設定ポイント
 
-- CORS 設定は `http://localhost:5173` を許可済みです。別ホストでフロントを動かす場合は `backend/kaizen_backend/settings.py` の `CORS_ALLOWED_ORIGINS` を編集してください。
-- SQLite を同梱しています。MySQL/PostgreSQL などへ変更する際は `DATABASES` 設定を差し替えてください。
-- 既存の Streamlit 実装（`kaizenteian.py` など）は残してあります。必要に応じて削除/連携してください。
+- **CORS/CSRF**: `backend/kaizen_backend/settings.py` の `CORS_ALLOWED_ORIGINS` / `CSRF_TRUSTED_ORIGINS` に必要なオリジンを追加してください。
+- **DB接続**: `config.py` を直接編集せず、ルートディレクトリの `.env` に `PRIMARY_DB_...` の変数を定義してください。
 
-以上で Django + Vue 構成の改善提案アプリを起動できます。質問や追加要望があればお知らせください。
-# kaizen_pp
+必要に応じて `requirements.txt` や `VITE_API_BASE` を環境に合わせて変更してください。
