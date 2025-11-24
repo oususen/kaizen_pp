@@ -178,6 +178,7 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         term = data.get("term")
         quarter = data.get("quarter")
         proposal_classification = data.get("proposal_classification")
+        committee_classification = data.get("committee_classification")
 
         approval = ProposalApproval.objects.filter(proposal=proposal, stage=stage).first()
         if not approval:
@@ -214,6 +215,9 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
 
         if stage == ProposalApproval.Stage.COMMITTEE and status_val == ProposalApproval.Status.APPROVED:
             updated_fields = []
+            if committee_classification:
+                proposal.committee_classification = committee_classification
+                updated_fields.append("committee_classification")
             if term is not None:
                 proposal.term = term
                 updated_fields.append("term")

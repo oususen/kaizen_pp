@@ -325,6 +325,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "chief_status",
             "manager_status",
             "committee_status",
+            "committee_classification",
         ]
         read_only_fields = (
             "management_no",
@@ -705,6 +706,9 @@ class ApprovalActionSerializer(serializers.Serializer):
     proposal_classification = serializers.ChoiceField(
         choices=ImprovementProposal.ProposalClassification.choices, required=False, allow_blank=True
     )
+    committee_classification = serializers.ChoiceField(
+        choices=ImprovementProposal.ProposalClassification.choices, required=False, allow_blank=True
+    )
     term = serializers.IntegerField(required=False, allow_null=True)
     quarter = serializers.IntegerField(required=False, allow_null=True)
     scores = serializers.DictField(child=serializers.IntegerField(min_value=1, max_value=5), required=False)
@@ -716,6 +720,7 @@ class ApprovalActionSerializer(serializers.Serializer):
         quarter = attrs.get('quarter')
         status_value = attrs.get('status')
         proposal_classification = attrs.get("proposal_classification")
+        committee_classification = attrs.get("committee_classification")
 
         if quarter is not None and quarter not in {1, 2, 3, 4}:
             raise serializers.ValidationError('quarter must be between 1 and 4')
@@ -723,6 +728,8 @@ class ApprovalActionSerializer(serializers.Serializer):
         if stage == ProposalApproval.Stage.COMMITTEE and status_value == ProposalApproval.Status.APPROVED:
             if term is None or quarter is None:
                 raise serializers.ValidationError('term and quarter are required at committee approval')
+            if not committee_classification:
+                raise serializers.ValidationError('committee_classification is required at committee approval')
 
         if stage == ProposalApproval.Stage.MANAGER and status_value == ProposalApproval.Status.APPROVED:
             if not proposal_classification:

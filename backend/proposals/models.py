@@ -236,6 +236,12 @@ class ImprovementProposal(models.Model):
         blank=True,
         choices=ProposalClassification.choices,
     )
+    committee_classification = models.CharField(
+        "改善委員判定",
+        max_length=20,
+        blank=True,
+        choices=ProposalClassification.choices,
+    )
     term = models.IntegerField("期", null=True, blank=True)
     quarter = models.PositiveSmallIntegerField("四半期", null=True, blank=True)
     comment = models.TextField("コメント", blank=True)
