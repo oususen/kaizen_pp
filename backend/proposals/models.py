@@ -164,6 +164,12 @@ class Employee(models.Model):
 
 
 class ImprovementProposal(models.Model):
+    class ProposalClassification(models.TextChoices):
+        HOLD = "保留提案", "保留提案"
+        EFFORT = "努力提案", "努力提案"
+        IDEA = "アイディア提案", "アイディア提案"
+        EXCELLENT = "優秀提案", "優秀提案"
+
     """Streamlit版の要件を満たす改善提案の本体."""
 
     management_no = models.CharField("管理No", max_length=64, unique=True)
@@ -223,6 +229,12 @@ class ImprovementProposal(models.Model):
         decimal_places=0,
         null=True,
         blank=True,
+    )
+    proposal_classification = models.CharField(
+        "提案判定",
+        max_length=20,
+        blank=True,
+        choices=ProposalClassification.choices,
     )
     term = models.IntegerField("期", null=True, blank=True)
     quarter = models.PositiveSmallIntegerField("四半期", null=True, blank=True)

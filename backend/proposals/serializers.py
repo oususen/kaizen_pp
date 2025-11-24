@@ -301,6 +301,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "improvement_result",
             "reduction_hours",
             "effect_amount",
+            "proposal_classification",
             "comment",
             "contribution_business",
             "mindset_score",
@@ -701,6 +702,9 @@ class ApprovalActionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=ProposalApproval.Status.choices)
     comment = serializers.CharField(allow_blank=True, required=False)
     confirmed_name = serializers.CharField(max_length=128)
+    proposal_classification = serializers.ChoiceField(
+        choices=ImprovementProposal.ProposalClassification.choices, required=False, allow_blank=True
+    )
     term = serializers.IntegerField(required=False, allow_null=True)
     quarter = serializers.IntegerField(required=False, allow_null=True)
     scores = serializers.DictField(child=serializers.IntegerField(min_value=1, max_value=5), required=False)
@@ -711,6 +715,7 @@ class ApprovalActionSerializer(serializers.Serializer):
         term = attrs.get('term')
         quarter = attrs.get('quarter')
         status_value = attrs.get('status')
+        proposal_classification = attrs.get("proposal_classification")
 
         if quarter is not None and quarter not in {1, 2, 3, 4}:
             raise serializers.ValidationError('quarter must be between 1 and 4')
@@ -718,6 +723,10 @@ class ApprovalActionSerializer(serializers.Serializer):
         if stage == ProposalApproval.Stage.COMMITTEE and status_value == ProposalApproval.Status.APPROVED:
             if term is None or quarter is None:
                 raise serializers.ValidationError('term and quarter are required at committee approval')
+
+        if stage == ProposalApproval.Stage.MANAGER and status_value == ProposalApproval.Status.APPROVED:
+            if not proposal_classification:
+                raise serializers.ValidationError('proposal_classification is required at manager approval')
 
         if stage in {ProposalApproval.Stage.MANAGER, ProposalApproval.Stage.COMMITTEE}:
             if not scores:

@@ -177,6 +177,7 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         status_val = data["status"]
         term = data.get("term")
         quarter = data.get("quarter")
+        proposal_classification = data.get("proposal_classification")
 
         approval = ProposalApproval.objects.filter(proposal=proposal, stage=stage).first()
         if not approval:
@@ -205,6 +206,11 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             approval.mindset_score = approval.idea_score = approval.hint_score = None
         
         approval.save()
+
+        if stage == ProposalApproval.Stage.MANAGER and status_val == ProposalApproval.Status.APPROVED:
+            if proposal_classification:
+                proposal.proposal_classification = proposal_classification
+                proposal.save(update_fields=["proposal_classification"])
 
         if stage == ProposalApproval.Stage.COMMITTEE and status_val == ProposalApproval.Status.APPROVED:
             updated_fields = []
