@@ -115,7 +115,7 @@ onMounted(async () => {
       </label>
 
       <label>
-        ログイン用メールアドレス
+        受信メールアドレス（通知受信用）
         <input v-model="form.email" type="email" placeholder="user@example.com" />
       </label>
 

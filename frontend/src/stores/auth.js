@@ -80,7 +80,7 @@ const logout = async () => {
   }
 }
 
-const defaultViewAllow = new Set(['submit', 'proposals', 'profile'])
+const defaultViewAllow = new Set(['submit', 'proposals'])
 
 const isAdmin = () => {
   const role = state.employee?.profile?.role || state.employee?.role

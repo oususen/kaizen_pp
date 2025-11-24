@@ -31,6 +31,8 @@ dist/
 # OS
 Thumbs.db
 .DS_Store
+nul
+*check_data.sql
 
 # Django
 backend/db.sqlite3

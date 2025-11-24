@@ -22,6 +22,7 @@ const resources = [
   { key: 'analytics', label: '分析・レポート' },
   { key: 'permissions', label: '権限設定' },
   { key: 'user_management', label: 'ユーザー管理' },
+  { key: 'profile', label: 'プロフィール' },
 ]
 
 const loadData = async () => {
