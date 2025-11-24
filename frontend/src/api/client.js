@@ -82,6 +82,17 @@ export const fetchCurrentEmployee = async () => {
   }
 }
 
+export const fetchMyProfile = async () => {
+  return request('/users/me/')
+}
+
+export const updateMyProfile = async (payload) => {
+  return request('/users/me/', {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
 export const fetchProposals = async (params = {}) => {
   const search = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {

@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from django.contrib.auth import get_user_model
-from .models import Department, Employee, UserPermission, ImprovementProposal, ProposalApproval
+from .models import Department, Employee, UserPermission, ImprovementProposal, ProposalApproval, UserProfile
 from .serializers import (
     ApprovalActionSerializer,
     DepartmentSerializer,
@@ -49,7 +49,7 @@ def get_smtp_connection_for_user(user):
 
             # SMTP設定が全て揃っているか確認
             if (profile.smtp_host and profile.smtp_user and
-                profile.smtp_password and profile.email):
+                profile.smtp_password and user.email):
 
                 # ユーザーのSMTP設定を使用して接続を作成
                 # 開発環境では暗号化なしで接続（TLSをオフ）
@@ -62,7 +62,7 @@ def get_smtp_connection_for_user(user):
                     use_tls=False,  # 開発環境では証明書エラーを回避するためFalse
                     fail_silently=False,
                 )
-                from_email = profile.email
+                from_email = user.email
                 logger.info(
                     "[mail] approval: use user SMTP user=%s host=%s port=%s from=%s",
                     getattr(user, "username", None),
@@ -501,6 +501,41 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update']:
             return UserCreateUpdateSerializer
         return UserSerializer
+
+    @action(detail=False, methods=["get", "patch"], url_path="me", permission_classes=[IsAuthenticated])
+    def me(self, request):
+        """現在ログイン中のユーザーが自分のプロフィールを参照/更新する"""
+        user = request.user
+        if request.method.lower() == "get":
+            return Response(UserSerializer(user).data)
+
+        data = request.data or {}
+        # 更新可能な項目のみ反映
+        allowed_user_fields = {"first_name", "email"}
+        for field in allowed_user_fields:
+            if field in data:
+                setattr(user, field, data.get(field) or "")
+        user.save()
+
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        # profileフィールドは分けて受け取る（フロント送信時の簡便さ優先）
+        profile_map = {
+            "profile_email": "email",
+            "profile_responsible_department": "responsible_department_id",
+            "smtp_host": "smtp_host",
+            "smtp_port": "smtp_port",
+            "smtp_user": "smtp_user",
+            "smtp_password": "smtp_password",
+        }
+        updated = False
+        for key, attr in profile_map.items():
+            if key in data:
+                setattr(profile, attr, data.get(key) or None)
+                updated = True
+        if updated:
+            profile.save()
+
+        return Response(UserSerializer(user).data)
 
 
 class UserPermissionViewSet(viewsets.ModelViewSet):

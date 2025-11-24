@@ -99,7 +99,6 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
         allow_null=True,
         source='profile.responsible_department'
     )
-    profile_email = serializers.EmailField(required=False, allow_blank=True, source='profile.email')
     smtp_host = serializers.CharField(required=False, allow_blank=True, source='profile.smtp_host')
     smtp_port = serializers.IntegerField(required=False, allow_null=True, source='profile.smtp_port')
     smtp_user = serializers.CharField(required=False, allow_blank=True, source='profile.smtp_user')
@@ -115,7 +114,6 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
             "password",
             "profile_role",
             "profile_responsible_department",
-            "profile_email",
             "smtp_host",
             "smtp_port",
             "smtp_user",
@@ -137,7 +135,6 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
             defaults={
                 'role': profile_data.get('role', 'staff'),
                 'responsible_department': profile_data.get('responsible_department'),
-                'email': profile_data.get('email', ''),
                 'smtp_host': profile_data.get('smtp_host', ''),
                 'smtp_port': profile_data.get('smtp_port'),
                 'smtp_user': profile_data.get('smtp_user', ''),
@@ -166,9 +163,7 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
                 'role': profile_data.get('role', 'staff'),
                 'responsible_department': profile_data.get('responsible_department'),
             }
-            # メールアドレス・SMTP設定がある場合のみ更新
-            if 'email' in profile_data:
-                profile_defaults['email'] = profile_data.get('email', '')
+            # SMTP設定がある場合のみ更新
             if 'smtp_host' in profile_data:
                 profile_defaults['smtp_host'] = profile_data.get('smtp_host', '')
             if 'smtp_port' in profile_data:
@@ -546,7 +541,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
 
                 # SMTP設定が全て揃っているか確認
                 if (profile.smtp_host and profile.smtp_user and
-                    profile.smtp_password and profile.email):
+                    profile.smtp_password and user.email):
 
                     # ユーザーのSMTP設定を使用して接続を作成
                     # 開発環境では暗号化なしで接続（TLSをオフ）
@@ -559,7 +554,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
                         use_tls=False,  # 開発環境では証明書エラーを回避するためFalse
                         fail_silently=False,
                     )
-                    from_email = profile.email
+                    from_email = user.email
                     logger.info(
                         "[mail] use user SMTP user=%s host=%s port=%s from=%s",
                         getattr(user, "username", None),
