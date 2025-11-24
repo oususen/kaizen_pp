@@ -196,10 +196,6 @@ const submitProposal = async () => {
     message.value = '必須項目を入力してください'
     return
   }
-  if (form.before_images.length === 0) {
-    message.value = '改善前の写真を最低1枚アップロードしてください'
-    return
-  }
   loading.value = true
   try {
     // FormDataを使って複数画像を送信
@@ -341,7 +337,8 @@ onMounted(() => {
       <div class="image-upload-section span">
         <div class="image-upload-container">
           <div class="image-upload-column">
-            <h3>改善前の写真 <span class="required-badge">必須</span></h3>
+            <h3>改善前の写真 </h3>
+            <!-- <h3>改善前の写真 <span class="required-badge">必須</span></h3> -->
             <input
               type="file"
               accept="image/*"
