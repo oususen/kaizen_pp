@@ -354,6 +354,14 @@ class UserProfile(models.Model):
         help_text="担当する部署（班長は班、係長は係、部門長・課長・改善委員は部・課）"
     )
 
+    # ユーザーメールアドレス
+    email = models.EmailField(
+        "メールアドレス",
+        blank=True,
+        default="",
+        help_text="ユーザーのメールアドレス"
+    )
+
     # メール送信設定（SMTP）
     smtp_host = models.CharField(
         "SMTPホスト",

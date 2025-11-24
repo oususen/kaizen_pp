@@ -27,6 +27,7 @@ const formData = ref({
   password: '',
   profile_role: 'staff',
   profile_responsible_department: null,
+  profile_email: '',
   smtp_host: '',
   smtp_port: null,
   smtp_user: '',
@@ -74,6 +75,7 @@ const openCreateModal = () => {
     password: '',
     profile_role: 'staff',
     profile_responsible_department: null,
+    profile_email: '',
     smtp_host: '',
     smtp_port: null,
     smtp_user: '',
@@ -91,6 +93,7 @@ const openEditModal = (user) => {
     password: '',
     profile_role: user.profile?.role || 'staff',
     profile_responsible_department: user.profile?.responsible_department || null,
+    profile_email: user.profile?.email || '',
     smtp_host: user.profile?.smtp_host || '',
     smtp_port: user.profile?.smtp_port || null,
     smtp_user: user.profile?.smtp_user || '',
@@ -127,6 +130,7 @@ const saveUser = async () => {
       email: formData.value.email,
       profile_role: formData.value.profile_role,
       profile_responsible_department: formData.value.profile_responsible_department,
+      profile_email: formData.value.profile_email,
       smtp_host: formData.value.smtp_host,
       smtp_port: formData.value.smtp_port,
       smtp_user: formData.value.smtp_user,
@@ -212,7 +216,7 @@ onMounted(() => {
           <tr v-for="user in users" :key="user.id">
             <td><strong>{{ user.username }}</strong></td>
             <td>{{ user.name || '-' }}</td>
-            <td>{{ user.email }}</td>
+            <td>{{ user.profile?.email || user.email || '-' }}</td>
             <td>{{ getRoleLabel(user.profile?.role) }}</td>
             <td>{{ getDepartmentName(user.profile?.responsible_department) }}</td>
             <td>{{ user.employee_name || '-' }}</td>
@@ -300,6 +304,17 @@ onMounted(() => {
             <small class="hint">
               役職に応じた部署のみ選択できます
             </small>
+          </div>
+
+          <div class="form-group">
+            <label>ユーザーメールアドレス</label>
+            <input
+              v-model="formData.profile_email"
+              type="email"
+              :disabled="!canEditUsers"
+              placeholder="例: user@example.com"
+            />
+            <small class="hint">メール送信時の送信元アドレスとして使用されます</small>
           </div>
 
           <h3 style="margin-top: 2rem; margin-bottom: 1rem; color: #374151;">メール送信設定（SMTP）</h3>

@@ -31,6 +31,54 @@ from .services import fiscal
 from .services.reports import generate_term_report
 
 
+def get_smtp_connection_for_user(user):
+    """指定されたユーザーのSMTP設定を使用してメール接続を作成"""
+    from django.core.mail import get_connection
+    from django.conf import settings
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if not user:
+        logger.info("[mail] no user -> default SMTP")
+        return None, settings.DEFAULT_FROM_EMAIL
+
+    try:
+        # ユーザーのプロファイルからSMTP設定を取得
+        if hasattr(user, 'profile') and user.profile:
+            profile = user.profile
+
+            # SMTP設定が全て揃っているか確認
+            if (profile.smtp_host and profile.smtp_user and
+                profile.smtp_password and profile.email):
+
+                # ユーザーのSMTP設定を使用して接続を作成
+                # 開発環境では暗号化なしで接続（TLSをオフ）
+                connection = get_connection(
+                    backend='django.core.mail.backends.smtp.EmailBackend',
+                    host=profile.smtp_host,
+                    port=profile.smtp_port or 587,
+                    username=profile.smtp_user,
+                    password=profile.smtp_password,
+                    use_tls=False,  # 開発環境では証明書エラーを回避するためFalse
+                    fail_silently=False,
+                )
+                from_email = profile.email
+                logger.info(
+                    "[mail] approval: use user SMTP user=%s host=%s port=%s from=%s",
+                    getattr(user, "username", None),
+                    profile.smtp_host,
+                    profile.smtp_port or 587,
+                    from_email,
+                )
+                return connection, from_email
+    except Exception as e:
+        logger.error("Error getting SMTP settings for user %s: %s", getattr(user, "username", None), e)
+
+    # フォールバック: デフォルト設定を使用
+    logger.warning("[mail] fallback default SMTP for user=%s", getattr(user, "username", None))
+    return None, settings.DEFAULT_FROM_EMAIL
+
+
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.select_related("parent")
     serializer_class = DepartmentSerializer
@@ -158,13 +206,14 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         if status_val == ProposalApproval.Status.APPROVED:
             stages_order = [s.value for s in ProposalApproval.Stage]
             current_stage_index = stages_order.index(stage)
-            
+
             if current_stage_index + 1 < len(stages_order):
                 next_stage = stages_order[current_stage_index + 1]
-                
-                # `UserProfile` の `role` と `responsible_department` を使って次の承認者を見つける
-                # `Employee` は古いモデルなので `UserProfile` を優先
-                
+
+                # proposals_userprofile テーブルから管轄者を検索
+                # auth_user.email からメールアドレスを取得
+                from proposals.models import UserProfile
+
                 next_approvers_query = Q()
                 role_map = {
                     "supervisor": "supervisor",
@@ -178,51 +227,86 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
                 if next_role:
                     department_q = Q()
                     if next_role == 'supervisor' and proposal.team:
-                        department_q = Q(profile__responsible_department=proposal.team)
+                        department_q = Q(responsible_department=proposal.team)
                     elif next_role == 'chief' and proposal.group:
-                        department_q = Q(profile__responsible_department=proposal.group)
+                        department_q = Q(responsible_department=proposal.group)
                     elif next_role == 'manager' and proposal.section:
-                        department_q = Q(profile__responsible_department=proposal.section)
+                        department_q = Q(responsible_department=proposal.section)
                     elif next_role == 'manager' and proposal.department:
-                         department_q = Q(profile__responsible_department=proposal.department)
+                         department_q = Q(responsible_department=proposal.department)
                     elif next_role in ['committee', 'committee_chair'] and proposal.section:
-                        department_q = Q(profile__responsible_department=proposal.section)
+                        department_q = Q(responsible_department=proposal.section)
                     elif next_role in ['committee', 'committee_chair'] and proposal.department:
-                        department_q = Q(profile__responsible_department=proposal.department)
+                        department_q = Q(responsible_department=proposal.department)
 
                     if department_q:
-                        next_approvers_query = Q(profile__role=next_role) & department_q
-                
+                        next_approvers_query = Q(role=next_role) & department_q
+
                 # システム管理者にも通知
-                next_approvers_query |= Q(profile__role='admin')
+                next_approvers_query |= Q(role='admin')
 
                 if next_approvers_query:
-                    next_approvers = User.objects.filter(next_approvers_query, is_active=True, email__isnull=False).exclude(email__exact='')
-                    
-                    recipient_list = [u.email for u in next_approvers]
+                    next_profiles = UserProfile.objects.filter(
+                        next_approvers_query,
+                        user__isnull=False,
+                        user__is_active=True,
+                        user__email__isnull=False
+                    ).exclude(user__email__exact='').select_related('user')
+
+                    recipient_list = [profile.user.email for profile in next_profiles if profile.user and profile.user.email]
+
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(
+                        "[mail] approval: next_stage=%s next_role=%s recipients=%s",
+                        next_stage,
+                        next_role,
+                        recipient_list
+                    )
+
                     if recipient_list:
                         subject = f"【改善提案】承認依頼: {proposal.management_no}"
                         message = f"""
                         改善提案が承認され、あなたの確認待ちです。
-                        
+
                         管理番号: {proposal.management_no}
                         提案者: {proposal.proposer_name}
                         テーマ: {proposal.deployment_item}
-                        
+
                         下記URLより内容を確認し、承認処理をお願いします。
-                        {settings.FRONTEND_URL}/approval-center
+                        http://10.0.1.194:5000/approval-center
                         """
                         try:
-                            send_mail(
-                                subject,
-                                message,
-                                settings.DEFAULT_FROM_EMAIL,
-                                recipient_list,
-                                fail_silently=False,
-                            )
+                            # 承認者のSMTP設定を取得
+                            from django.core.mail import EmailMessage
+                            connection, from_email = get_smtp_connection_for_user(request.user)
+
+                            # SMTP設定が設定されていない場合は送信しない
+                            if not connection:
+                                logger.warning(
+                                    "[mail] SMTP not configured for user: %s",
+                                    request.user.username if request.user else 'Unknown'
+                                )
+                            else:
+                                # EmailMessageを使用してカスタム接続で送信
+                                email = EmailMessage(
+                                    subject=subject,
+                                    body=message,
+                                    from_email=from_email,
+                                    to=recipient_list,
+                                    connection=connection,
+                                )
+                                email.send(fail_silently=False)
+                                logger.info("[mail] approval email sent to=%s from=%s", recipient_list, from_email)
                         except Exception as e:
-                            # In a real app, you'd want to log this error
-                            print(f"Error sending email: {e}")
+                            logger.error("Error sending approval email: %s", e)
+                    else:
+                        logger.warning(
+                            "[mail] no recipients found for approval: proposal_id=%s next_stage=%s next_role=%s",
+                            proposal.id,
+                            next_stage,
+                            next_role
+                        )
 
         refreshed = self.get_serializer(proposal)
         return Response(refreshed.data)

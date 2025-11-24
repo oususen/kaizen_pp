@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
+import logging
 
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -22,6 +23,7 @@ from .services.identifiers import generate_management_no
 from .services.images import save_proposal_image
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 def build_media_url(request, path: str | None) -> str:
@@ -54,6 +56,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "role_display",
             "responsible_department",
             "responsible_department_detail",
+            "email",
             "smtp_host",
             "smtp_port",
             "smtp_user",
@@ -96,6 +99,7 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
         allow_null=True,
         source='profile.responsible_department'
     )
+    profile_email = serializers.EmailField(required=False, allow_blank=True, source='profile.email')
     smtp_host = serializers.CharField(required=False, allow_blank=True, source='profile.smtp_host')
     smtp_port = serializers.IntegerField(required=False, allow_null=True, source='profile.smtp_port')
     smtp_user = serializers.CharField(required=False, allow_blank=True, source='profile.smtp_user')
@@ -111,6 +115,7 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
             "password",
             "profile_role",
             "profile_responsible_department",
+            "profile_email",
             "smtp_host",
             "smtp_port",
             "smtp_user",
@@ -132,6 +137,7 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
             defaults={
                 'role': profile_data.get('role', 'staff'),
                 'responsible_department': profile_data.get('responsible_department'),
+                'email': profile_data.get('email', ''),
                 'smtp_host': profile_data.get('smtp_host', ''),
                 'smtp_port': profile_data.get('smtp_port'),
                 'smtp_user': profile_data.get('smtp_user', ''),
@@ -160,7 +166,9 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
                 'role': profile_data.get('role', 'staff'),
                 'responsible_department': profile_data.get('responsible_department'),
             }
-            # SMTP設定がある場合のみ更新
+            # メールアドレス・SMTP設定がある場合のみ更新
+            if 'email' in profile_data:
+                profile_defaults['email'] = profile_data.get('email', '')
             if 'smtp_host' in profile_data:
                 profile_defaults['smtp_host'] = profile_data.get('smtp_host', '')
             if 'smtp_port' in profile_data:
@@ -392,6 +400,8 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        from django.core.mail import send_mail
+
         before_image = validated_data.pop("before_image", None)
         after_image = validated_data.pop("after_image", None)
         request = self.context.get("request")
@@ -427,6 +437,10 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             proposal.save(update_fields=updated_fields)
         for stage, _ in ProposalApproval.Stage.choices:
             ProposalApproval.objects.get_or_create(proposal=proposal, stage=stage)
+
+        # 提案提出時に上司へメール送信
+        self._send_submission_email(proposal)
+
         return proposal
 
     def update(self, instance, validated_data):
@@ -517,6 +531,158 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             data["after_image_path"] = data["after_images"][0].get("url") or ""
         return data
 
+    def _get_smtp_connection_for_user(self, user):
+        """指定されたユーザーのSMTP設定を使用してメール接続を作成"""
+        from django.core.mail import get_connection
+
+        if not user:
+            logger.info("[mail] no user -> default SMTP from=%s", settings.DEFAULT_FROM_EMAIL)
+            return get_connection(fail_silently=False), settings.DEFAULT_FROM_EMAIL
+
+        try:
+            # ユーザープロファイルからSMTP設定を取得
+            if hasattr(user, 'profile') and user.profile:
+                profile = user.profile
+
+                # SMTP設定が全て揃っているか確認
+                if (profile.smtp_host and profile.smtp_user and
+                    profile.smtp_password and profile.email):
+
+                    # ユーザーのSMTP設定を使用して接続を作成
+                    # 開発環境では暗号化なしで接続（TLSをオフ）
+                    connection = get_connection(
+                        backend='django.core.mail.backends.smtp.EmailBackend',
+                        host=profile.smtp_host,
+                        port=profile.smtp_port or 587,
+                        username=profile.smtp_user,
+                        password=profile.smtp_password,
+                        use_tls=False,  # 開発環境では証明書エラーを回避するためFalse
+                        fail_silently=False,
+                    )
+                    from_email = profile.email
+                    logger.info(
+                        "[mail] use user SMTP user=%s host=%s port=%s from=%s",
+                        getattr(user, "username", None),
+                        profile.smtp_host,
+                        profile.smtp_port or 587,
+                        from_email,
+                    )
+                    return connection, from_email
+        except Exception as e:
+            logger.error("Error getting SMTP settings for user %s: %s", getattr(user, "username", None), e)
+
+        # フォールバック: デフォルト設定を使用
+        logger.warning(
+            "[mail] fallback default SMTP for user=%s from=%s",
+            getattr(user, "username", None),
+            settings.DEFAULT_FROM_EMAIL,
+        )
+        return get_connection(fail_silently=False), settings.DEFAULT_FROM_EMAIL
+
+    def _send_submission_email(self, proposal):
+        """Send submission email to the appropriate supervisor."""
+        from django.core.mail import EmailMessage, get_connection
+        from django.db.models import Q
+        from .models import UserProfile
+
+        # Find supervisors in order: team -> group -> department
+        role_dept_chain = []
+        if proposal.team:
+            role_dept_chain.append(("supervisor", proposal.team))
+        if proposal.group:
+            role_dept_chain.append(("chief", proposal.group))
+        if proposal.department:
+            role_dept_chain.append(("manager", proposal.department))
+
+        logger.info(
+            "[mail] submit proposal id=%s mgmt_no=%s proposer=%s dept_chain=%s",
+            proposal.id,
+            proposal.management_no,
+            proposal.proposer_name,
+            [(r, getattr(d, "id", None), getattr(d, "name", None)) for r, d in role_dept_chain],
+        )
+
+        recipient_list = []
+        for role, dept in role_dept_chain:
+            # proposals_userprofile テーブルから管轄者を検索
+            # auth_user.email からメールアドレスを取得
+            profiles_query = Q(role=role, responsible_department=dept) | Q(role='admin')
+            profiles = UserProfile.objects.filter(
+                profiles_query,
+                user__isnull=False,
+                user__is_active=True,
+                user__email__isnull=False
+            ).exclude(user__email__exact='').select_related('user')
+
+            recipient_list = [profile.user.email for profile in profiles if profile.user and profile.user.email]
+            logger.info(
+                "[mail] role=%s dept_id=%s dept_name=%s recipients=%s (from UserProfile table)",
+                role,
+                getattr(dept, "id", None),
+                getattr(dept, "name", None),
+                recipient_list,
+            )
+            if recipient_list:
+                break
+
+        if not recipient_list:
+            logger.warning("[mail] no recipients found for proposal id=%s", proposal.id)
+            return  # No recipients, skip sending
+
+        subject = f"【改善提案】新規登録: {proposal.management_no}"
+
+        dept_name = ""
+        if proposal.team:
+            dept_name = f"{proposal.department.name if proposal.department else ''}/{proposal.group.name if proposal.group else ''}/{proposal.team.name}"
+        elif proposal.group:
+            dept_name = f"{proposal.department.name if proposal.department else ''}/{proposal.group.name}"
+        elif proposal.department:
+            dept_name = proposal.department.name
+
+        message = f"""
+        改善提案が登録されました。
+
+        管理番号: {proposal.management_no}
+        提案者: {proposal.proposer_name}
+        部署: {dept_name}
+        テーマ: {proposal.deployment_item}
+
+        下記URLから内容を確認し、承認をお願いします。
+        http://10.0.1.194:5000/approval-center
+        """
+
+        try:
+            # ログインしているユーザー（created_by）のSMTP設定を使用
+            # auth_user → proposals_userprofile から smtp_host, smtp_user, smtp_password を取得
+            login_user = proposal.created_by
+            logger.info(
+                "[mail] login_user=%s (created_by)",
+                getattr(login_user, 'username', None) if login_user else None
+            )
+
+            connection, from_email = self._get_smtp_connection_for_user(login_user)
+
+            # Fall back to default connection if user-specific SMTP is missing
+            if not connection:
+                connection = get_connection(fail_silently=False)
+                from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "")
+                logger.warning(
+                    "[mail] SMTP not configured for login_user=%s; using default from=%s",
+                    getattr(login_user, "username", None) if login_user else None,
+                    from_email,
+                )
+
+            email = EmailMessage(
+                subject=subject,
+                body=message,
+                from_email=from_email,
+                to=recipient_list,
+                connection=connection,
+            )
+            email.send(fail_silently=False)
+            logger.info("[mail] sent submission email to=%s from=%s", recipient_list, from_email)
+        except Exception as e:
+            logger.error("Error sending submission email: %s", e)
 
 class ApprovalActionSerializer(serializers.Serializer):
     stage = serializers.ChoiceField(choices=ProposalApproval.Stage.choices)
