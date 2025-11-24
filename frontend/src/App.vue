@@ -9,7 +9,6 @@ const navItems = [
   { to: '/approvals', label: '承認センター', resource: 'approvals' },
   { to: '/confirmed', label: '確認済み一覧', resource: 'confirmed' },
   { to: '/reports', label: 'レポート', resource: 'reports' },
-  { to: '/analytics', label: '分析・レポート', resource: 'analytics' },
   { to: '/permissions', label: '権限設定', resource: 'permissions' },
   { to: '/users', label: 'ユーザー管理', resource: 'user_management' },
 ]

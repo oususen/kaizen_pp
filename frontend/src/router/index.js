@@ -4,7 +4,6 @@ import ProposalList from '../pages/ProposalList.vue'
 import ApprovalCenter from '../pages/ApprovalCenter.vue'
 import ConfirmedList from '../pages/ConfirmedList.vue'
 import ReportsPage from '../pages/ReportsPage.vue'
-import AnalyticsPage from '../pages/AnalyticsPage.vue'
 import PermissionSettings from '../pages/PermissionSettings.vue'
 import UserManagement from '../pages/UserManagement.vue'
 import LoginPage from '../pages/LoginPage.vue'
@@ -18,7 +17,6 @@ const routes = [
   { path: '/approvals', component: ApprovalCenter, meta: { title: '承認センター' } },
   { path: '/confirmed', component: ConfirmedList, meta: { title: '確認済み一覧' } },
   { path: '/reports', component: ReportsPage, meta: { title: 'レポート' } },
-  { path: '/analytics', component: AnalyticsPage, meta: { title: '分析・レポート' } },
   { path: '/permissions', component: PermissionSettings, meta: { title: '権限設定' } },
   { path: '/users', component: UserManagement, meta: { title: 'ユーザー管理' } },
 ]
@@ -51,7 +49,6 @@ router.beforeEach(async (to, from, next) => {
     '/approvals': 'approvals',
     '/confirmed': 'confirmed',
     '/reports': 'reports',
-    '/analytics': 'analytics',
     '/permissions': 'permissions',
     '/users': 'user_management',
   }
