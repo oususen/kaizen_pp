@@ -192,7 +192,18 @@ const getImagePreviewUrl = (file) => {
 const submitProposal = async () => {
   message.value = ''
   success.value = ''
-  if (!form.department || !form.proposer || !form.deployment_item || !form.problem_summary || !form.improvement_plan) {
+  const requiredFields = [
+    form.department,
+    form.proposer,
+    form.deployment_item,
+    form.problem_summary,
+    form.improvement_plan,
+    form.improvement_result,
+  ]
+  const hasEmptyRequired = requiredFields.some(
+    (value) => value === null || value === undefined || (typeof value === 'string' && value.trim() === ''),
+  )
+  if (hasEmptyRequired || form.contribution_business.length === 0) {
     message.value = '必須項目を入力してください'
     return
   }
@@ -310,8 +321,8 @@ onMounted(() => {
       </label>
 
       <label class="span">
-        改善結果
-        <textarea v-model="form.improvement_result" rows="3"></textarea>
+        改善結果*
+        <textarea v-model="form.improvement_result" rows="3" required></textarea>
       </label>
 
       <label>
@@ -320,8 +331,8 @@ onMounted(() => {
       </label>
 
       <label>
-        効果部門
-        <select v-model="form.contribution_business" multiple>
+        効果部門*
+        <select v-model="form.contribution_business" multiple required>
           <option v-for="dept in effectDepartmentOptions" :key="dept.id" :value="dept.name">
             {{ dept.name }}
           </option>
