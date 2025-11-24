@@ -350,6 +350,14 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         check_level(attrs.get("group", getattr(current, "group", None)), "group", "group")
         check_level(attrs.get("team", getattr(current, "team", None)), "team", "team")
 
+        quarter = attrs.get("quarter")
+        if quarter is not None and quarter not in {1, 2, 3, 4}:
+            errors["quarter"] = "quarter must be between 1 and 4"
+
+        term = attrs.get("term")
+        if term is not None and term < 0:
+            errors["term"] = "term must be zero or positive"
+
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
@@ -406,6 +414,11 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             validated_data["management_no"] = generate_management_no()
         if not validated_data.get("submitted_at"):
             validated_data["submitted_at"] = timezone.now()
+        submitted_at = validated_data.get("submitted_at")
+        if validated_data.get("term") is None and submitted_at:
+            validated_data["term"] = fiscal.fiscal_term(submitted_at)
+        if validated_data.get("quarter") is None and submitted_at:
+            validated_data["quarter"] = fiscal.fiscal_quarter(submitted_at)
         reduction_hours = validated_data.get("reduction_hours")
         if reduction_hours is not None and not validated_data.get("effect_amount"):
             validated_data["effect_amount"] = Decimal("1700") * reduction_hours
@@ -484,9 +497,13 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         return all(a.status == ProposalApproval.Status.APPROVED for a in approvals)
 
     def get_term(self, obj: ImprovementProposal) -> int:
+        if obj.term is not None:
+            return obj.term
         return fiscal.fiscal_term(obj.submitted_at)
 
     def get_quarter(self, obj: ImprovementProposal) -> int:
+        if obj.quarter is not None:
+            return obj.quarter
         return fiscal.fiscal_quarter(obj.submitted_at)
 
     def get_supervisor_status(self, obj: ImprovementProposal) -> str:
@@ -684,11 +701,24 @@ class ApprovalActionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=ProposalApproval.Status.choices)
     comment = serializers.CharField(allow_blank=True, required=False)
     confirmed_name = serializers.CharField(max_length=128)
+    term = serializers.IntegerField(required=False, allow_null=True)
+    quarter = serializers.IntegerField(required=False, allow_null=True)
     scores = serializers.DictField(child=serializers.IntegerField(min_value=1, max_value=5), required=False)
 
     def validate(self, attrs):
         stage = attrs.get('stage')
         scores = attrs.get('scores')
+        term = attrs.get('term')
+        quarter = attrs.get('quarter')
+        status_value = attrs.get('status')
+
+        if quarter is not None and quarter not in {1, 2, 3, 4}:
+            raise serializers.ValidationError('quarter must be between 1 and 4')
+
+        if stage == ProposalApproval.Stage.COMMITTEE and status_value == ProposalApproval.Status.APPROVED:
+            if term is None or quarter is None:
+                raise serializers.ValidationError('term and quarter are required at committee approval')
+
         if stage in {ProposalApproval.Stage.MANAGER, ProposalApproval.Stage.COMMITTEE}:
             if not scores:
                 raise serializers.ValidationError('scores are required for this stage')

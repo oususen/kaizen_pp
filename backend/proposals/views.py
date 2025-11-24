@@ -135,7 +135,9 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
                 start_date, end_date = fiscal.term_date_range(term_number)
                 start_dt = datetime.combine(start_date, time.min)
                 end_dt = datetime.combine(end_date, time.max)
-                queryset = queryset.filter(submitted_at__range=(start_dt, end_dt))
+                queryset = queryset.filter(
+                    Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt)))
+                )
             except ValueError:
                 pass
 
@@ -173,6 +175,8 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         stage = data["stage"]
         status_val = data["status"]
+        term = data.get("term")
+        quarter = data.get("quarter")
 
         approval = ProposalApproval.objects.filter(proposal=proposal, stage=stage).first()
         if not approval:
@@ -201,6 +205,17 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             approval.mindset_score = approval.idea_score = approval.hint_score = None
         
         approval.save()
+
+        if stage == ProposalApproval.Stage.COMMITTEE and status_val == ProposalApproval.Status.APPROVED:
+            updated_fields = []
+            if term is not None:
+                proposal.term = term
+                updated_fields.append("term")
+            if quarter is not None:
+                proposal.quarter = quarter
+                updated_fields.append("quarter")
+            if updated_fields:
+                proposal.save(update_fields=updated_fields)
 
         # メール送信ロジック
         if status_val == ProposalApproval.Status.APPROVED:

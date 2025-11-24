@@ -224,6 +224,8 @@ class ImprovementProposal(models.Model):
         null=True,
         blank=True,
     )
+    term = models.IntegerField("期", null=True, blank=True)
+    quarter = models.PositiveSmallIntegerField("四半期", null=True, blank=True)
     comment = models.TextField("コメント", blank=True)
     contribution_business = models.CharField("貢献事業", max_length=255, blank=True)
     mindset_score = models.PositiveSmallIntegerField("マインドセット", null=True, blank=True)
