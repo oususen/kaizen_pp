@@ -331,7 +331,7 @@ onMounted(() => {
               <tr>
                 <th>部門</th>
                 <th v-for="key in monthKeys" :key="key">{{ key }}</th>
-                <th>年間合計</th>
+                <th>年度合計</th>
               </tr>
             </thead>
             <tbody>

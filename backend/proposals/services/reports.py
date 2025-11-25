@@ -64,13 +64,16 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
         idea = getattr(committee_approval, "idea_score", None) or getattr(manager_approval, "idea_score", None)
         hint = getattr(committee_approval, "hint_score", None) or getattr(manager_approval, "hint_score", None)
 
+        # Classification (prioritize committee, then proposal)
+        classification = p.committee_classification or p.proposal_classification or "通常"
+
         # Department info
         dept_name = p.department.name if p.department else ""
-        
+
         # Contributing business (Effect Department)
-        # Assuming 'contributing_business' might be stored as a string or list in JSON
+        # Assuming 'contribution_business' might be stored as a string or list in JSON
         # Adapting logic to handle simple string for now, or parse if it looks like a list
-        effect_dept = _normalize_text_list(p.contributing_business)
+        effect_dept = _normalize_text_list(p.contribution_business)
         effect_display = effect_dept.split(",")[0].strip() if effect_dept else ""
 
         row = {
@@ -93,7 +96,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
             "みんなのヒント": hint,
             "SDGs": "",
             "安全": "",
-            "判定区分": "通常",
+            "判定区分": classification,
             "保留": "",
             "提案ポイント": "",
             "報奨金": "",
@@ -187,7 +190,7 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
 def build_department_month_matrix(df: pd.DataFrame, term_number: int) -> pd.DataFrame:
     month_numbers = fiscal.fiscal_month_sequence()
     month_columns = [f"{month}月" for month in month_numbers]
-    columns = ["部署"] + month_columns + ["年間合計"]
+    columns = ["部署"] + month_columns + ["年度合計"]
     
     if df.empty:
         return pd.DataFrame(columns=columns)
@@ -208,7 +211,7 @@ def build_department_month_matrix(df: pd.DataFrame, term_number: int) -> pd.Data
             count = group[group["提出日時_dt"].dt.month == month].shape[0]
             row[f"{month}月"] = int(count)
             total += count
-        row["年間合計"] = int(total)
+        row["年度合計"] = int(total)
         rows.append(row)
 
     result = pd.DataFrame(rows)
