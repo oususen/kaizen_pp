@@ -39,6 +39,29 @@ const form = reactive({
 
 const needsScore = (stage) => stage === 'manager'
 
+const classificationValues = {
+  hold: classificationOptions[0]?.value ?? '',
+  effort: classificationOptions[1]?.value ?? '',
+  idea: classificationOptions[2]?.value ?? '',
+  excellent: classificationOptions[3]?.value ?? '',
+}
+
+const classificationTouched = ref(false)
+
+const suggestClassification = () => {
+  const scores = [form.mindset, form.idea, form.hint]
+  const validScores = scores.filter((v) => v !== null && v !== undefined && v !== '')
+  if (validScores.length === 0) return ''
+
+  const count5 = validScores.filter((v) => Number(v) === 5).length
+  if (count5 >= 1) return classificationValues.excellent
+
+  const count4 = validScores.filter((v) => Number(v) === 4).length
+  if (count4 >= 2) return classificationValues.idea
+
+  return classificationValues.effort
+}
+
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString('ja-JP') : '')
 
 const stageApproval = (stage) => {
@@ -204,12 +227,20 @@ const openApprovalDialog = () => {
   form.status = 'approved'
   form.confirmed_name = auth.state.employee?.name || auth.state.user?.username || ''
   form.comment = ''
-  form.mindset = 3
-  form.idea = 3
-  form.hint = 3
+  form.mindset = selectedProposal.value?.mindset_score ?? 3
+  form.idea = selectedProposal.value?.idea_score ?? 3
+  form.hint = selectedProposal.value?.hint_score ?? 3
   form.term = selectedProposal.value?.term ?? ''
   form.quarter = selectedProposal.value?.quarter ?? ''
+  classificationTouched.value = false
   form.proposal_classification = selectedProposal.value?.proposal_classification ?? ''
+  if (isManagerStage.value) {
+    if (form.proposal_classification) {
+      classificationTouched.value = true
+    } else {
+      form.proposal_classification = suggestClassification()
+    }
+  }
   form.committee_classification = selectedProposal.value?.committee_classification ?? ''
 }
 
@@ -283,11 +314,24 @@ const submitApproval = async () => {
   }
 }
 
+const onProposalClassificationChange = () => {
+  classificationTouched.value = true
+}
+
 watch(selectedStage, () => {
   if (!ensureStage()) return
   selectedProposal.value = null
   loadProposals()
 })
+
+watch(
+  () => [form.mindset, form.idea, form.hint],
+  () => {
+    if (!isManagerStage.value) return
+    if (classificationTouched.value) return
+    form.proposal_classification = suggestClassification()
+  }
+)
 
 onMounted(() => {
   ensureStage()
@@ -565,7 +609,7 @@ onMounted(() => {
           <div v-if="isManagerStage">
             <label>
               提案判定*
-              <select v-model="form.proposal_classification" required>
+              <select v-model="form.proposal_classification" @change="onProposalClassificationChange" required>
                 <option value="" disabled>選択してください</option>
                 <option v-for="opt in classificationOptions" :key="opt.value" :value="opt.value">
                   {{ opt.label }}
