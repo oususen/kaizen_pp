@@ -308,6 +308,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "reduction_hours",
             "effect_amount",
             "proposal_classification",
+            "classification_points",
             "contribution_business",
             "term",
             "quarter",
@@ -345,6 +346,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "after_images",
             "created_at",
             "updated_at",
+            "classification_points",
         )
 
     def validate(self, attrs):

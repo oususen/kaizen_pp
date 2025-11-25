@@ -48,6 +48,17 @@ const classificationValues = {
 
 const classificationTouched = ref(false)
 
+const classificationPoints = computed(() => {
+  const map = {
+    [classificationValues.hold]: 0,
+    [classificationValues.effort]: 1,
+    [classificationValues.idea]: 4,
+    [classificationValues.excellent]: 8,
+  }
+  const points = map[form.proposal_classification]
+  return points ?? ''
+})
+
 const suggestClassification = () => {
   const scores = [form.mindset, form.idea, form.hint]
   const validScores = scores.filter((v) => v !== null && v !== undefined && v !== '')
@@ -576,6 +587,16 @@ onMounted(() => {
                 <label>改善委員判定</label>
                 <span class="classification-badge">{{ selectedProposal.committee_classification }}</span>
               </div>
+              <div class="detail-item">
+                <label>ポイント</label>
+                <span class="classification-badge">
+                  {{
+                    selectedProposal.classification_points === 0 || selectedProposal.classification_points
+                      ? selectedProposal.classification_points
+                      : '-'
+                  }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -606,6 +627,24 @@ onMounted(() => {
             <input v-model="form.confirmed_name" type="text" required />
           </label>
 
+          <div v-if="isManagerStage" class="scores-section">
+            <h3>採点スコア (1-5点)</h3>
+            <div class="score-grid">
+              <label>
+                マインドセット
+                <input v-model.number="form.mindset" type="number" min="1" max="5" required />
+              </label>
+              <label>
+                アイデア工夫
+                <input v-model.number="form.idea" type="number" min="1" max="5" required />
+              </label>
+              <label>
+                みんなのヒント
+                <input v-model.number="form.hint" type="number" min="1" max="5" required />
+              </label>
+            </div>
+          </div>
+
           <div v-if="isManagerStage">
             <label>
               提案判定*
@@ -619,6 +658,13 @@ onMounted(() => {
             <p v-if="selectedProposal?.committee_classification" class="classification-note">
               改善委員判定: {{ selectedProposal.committee_classification }}
             </p>
+          </div>
+
+          <div v-if="isManagerStage">
+            <label>
+              ポイント
+              <input :value="classificationPoints" type="number" readonly placeholder="-" />
+            </label>
           </div>
 
           <div v-if="isCommitteeStage" class="term-quarter-grid">
@@ -651,24 +697,6 @@ onMounted(() => {
             コメント
             <textarea v-model="form.comment" rows="3"></textarea>
           </label>
-
-          <div v-if="needsScore(selectedStage)" class="scores-section">
-            <h3>採点スコア (1-5点)</h3>
-            <div class="score-grid">
-              <label>
-                マインドセット
-                <input v-model.number="form.mindset" type="number" min="1" max="5" required />
-              </label>
-              <label>
-                アイデア力
-                <input v-model.number="form.idea" type="number" min="1" max="5" required />
-              </label>
-              <label>
-                みんなのヒント
-                <input v-model.number="form.hint" type="number" min="1" max="5" required />
-              </label>
-            </div>
-          </div>
 
           <div class="modal-actions">
             <button type="button" @click="closeDialog" class="btn-cancel">キャンセル</button>

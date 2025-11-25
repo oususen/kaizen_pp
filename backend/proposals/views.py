@@ -79,6 +79,19 @@ def get_smtp_connection_for_user(user):
     return None, settings.DEFAULT_FROM_EMAIL
 
 
+def calculate_classification_points(classification: str | None) -> int | None:
+    """Map classification to points."""
+    if not classification:
+        return None
+    mapping = {
+        ImprovementProposal.ProposalClassification.HOLD: 0,
+        ImprovementProposal.ProposalClassification.EFFORT: 1,
+        ImprovementProposal.ProposalClassification.IDEA: 4,
+        ImprovementProposal.ProposalClassification.EXCELLENT: 8,
+    }
+    return mapping.get(classification)
+
+
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.select_related("parent")
     serializer_class = DepartmentSerializer
@@ -294,6 +307,9 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             if proposal_classification:
                 proposal.proposal_classification = proposal_classification
                 updated_fields.append("proposal_classification")
+                points = calculate_classification_points(proposal_classification)
+                proposal.classification_points = points
+                updated_fields.append("classification_points")
             # 評価基準スコアを提案テーブルに保存
             if scores:
                 proposal.mindset_score = scores.get("mindset")

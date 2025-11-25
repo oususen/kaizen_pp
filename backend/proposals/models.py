@@ -247,6 +247,7 @@ class ImprovementProposal(models.Model):
         blank=True,
         choices=ProposalClassification.choices,
     )
+    classification_points = models.PositiveSmallIntegerField("ポイント", null=True, blank=True)
     term = models.IntegerField("期", null=True, blank=True)
     quarter = models.PositiveSmallIntegerField("四半期", null=True, blank=True)
     serial_number = models.PositiveIntegerField("通し番号", null=True, blank=True)
