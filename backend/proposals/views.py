@@ -96,6 +96,32 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
     serializer_class = ImprovementProposalSerializer
     permission_classes = [AllowAny]
 
+    def destroy(self, request, *args, **kwargs):
+        """提案を削除（班長以上の権限が必要）"""
+        user = request.user
+        if not user.is_authenticated:
+            return Response(
+                {"detail": "ログインが必要です"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # ユーザーの役職を取得
+        role = None
+        if hasattr(user, 'profile') and user.profile:
+            role = user.profile.role
+        elif hasattr(user, 'employee_profile') and user.employee_profile:
+            role = user.employee_profile.role
+
+        # 班長以上の権限チェック
+        allowed_roles = ['supervisor', 'chief', 'manager', 'committee', 'committee_chair', 'admin']
+        if role not in allowed_roles:
+            return Response(
+                {"detail": "この操作には班長以上の権限が必要です"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return super().destroy(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = (
             ImprovementProposal.objects.select_related(
