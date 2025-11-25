@@ -448,7 +448,9 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         start_dt = datetime.combine(start_date, time.min)
         end_dt = datetime.combine(end_date, time.max)
         proposals = (
-            ImprovementProposal.objects.filter(submitted_at__range=(start_dt, end_dt))
+            ImprovementProposal.objects.filter(
+                Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt)))
+            )
             .select_related("department", "section", "group", "team", "proposer")
             .prefetch_related("approvals__confirmed_by")
         )
@@ -476,7 +478,9 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         end_dt = datetime.combine(end_date, time.max)
         
         proposals = (
-            ImprovementProposal.objects.filter(submitted_at__range=(start_dt, end_dt))
+            ImprovementProposal.objects.filter(
+                Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt)))
+            )
             .select_related("department", "section", "group", "team", "proposer")
             .prefetch_related("approvals__confirmed_by")
         )
