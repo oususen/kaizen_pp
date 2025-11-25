@@ -427,10 +427,6 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         if not validated_data.get("submitted_at"):
             validated_data["submitted_at"] = timezone.now()
         submitted_at = validated_data.get("submitted_at")
-        if validated_data.get("term") is None and submitted_at:
-            validated_data["term"] = fiscal.fiscal_term(submitted_at)
-        if validated_data.get("quarter") is None and submitted_at:
-            validated_data["quarter"] = fiscal.fiscal_quarter(submitted_at)
         reduction_hours = validated_data.get("reduction_hours")
         if reduction_hours is not None and not validated_data.get("effect_amount"):
             validated_data["effect_amount"] = Decimal("1700") * reduction_hours
@@ -509,14 +505,10 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         return all(a.status == ProposalApproval.Status.APPROVED for a in approvals)
 
     def get_term(self, obj: ImprovementProposal) -> int:
-        if obj.term is not None:
-            return obj.term
-        return fiscal.fiscal_term(obj.submitted_at)
+        return obj.term
 
     def get_quarter(self, obj: ImprovementProposal) -> int:
-        if obj.quarter is not None:
-            return obj.quarter
-        return fiscal.fiscal_quarter(obj.submitted_at)
+        return obj.quarter
 
     def get_supervisor_status(self, obj: ImprovementProposal) -> str:
         approvals = self._get_approvals(obj)

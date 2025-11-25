@@ -199,6 +199,7 @@ const submitProposal = async () => {
     form.problem_summary,
     form.improvement_plan,
     form.improvement_result,
+    form.effect_details,
   ]
   const hasEmptyRequired = requiredFields.some(
     (value) => value === null || value === undefined || (typeof value === 'string' && value.trim() === ''),
@@ -326,11 +327,12 @@ onMounted(() => {
       </label>
 
       <label class="span">
-        効果内容・効果算出
+        効果内容・効果算出*
         <textarea
           v-model="form.effect_details"
           rows="3"
           placeholder="時間単価１７００円で計算すること。削減時間は「誰が」「どれだけ」がわかるように記入してください。"
+          required
         ></textarea>
         <small style="color: #64748b; font-style: italic;">
           ※時間単価１７００円で計算すること。削減時間は「誰が」「どれだけ」がわかるように記入してください。

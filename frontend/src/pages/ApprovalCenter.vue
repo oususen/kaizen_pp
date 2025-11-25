@@ -231,6 +231,21 @@ const canActOnCurrentStage = computed(() => {
   return !!selectedStage.value && allowedStages.value.includes(selectedStage.value)
 })
 
+const getCurrentFiscalTerm = (date) => {
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  // Fiscal year starts in April
+  return month >= 4 ? year : year - 1
+}
+
+const getCurrentFiscalQuarter = (date) => {
+  const month = date.getMonth() + 1
+  if (month >= 4 && month <= 6) return 1
+  if (month >= 7 && month <= 9) return 2
+  if (month >= 10 && month <= 12) return 3
+  return 4 // Jan-Mar
+}
+
 const openApprovalDialog = () => {
   if (!selectedProposal.value) return
   if (!ensureStage()) return
@@ -241,8 +256,9 @@ const openApprovalDialog = () => {
   form.mindset = selectedProposal.value?.mindset_score ?? 3
   form.idea = selectedProposal.value?.idea_score ?? 3
   form.hint = selectedProposal.value?.hint_score ?? 3
-  form.term = selectedProposal.value?.term ?? ''
-  form.quarter = selectedProposal.value?.quarter ?? ''
+  const now = new Date()
+  form.term = selectedProposal.value?.term ?? getCurrentFiscalTerm(now)
+  form.quarter = selectedProposal.value?.quarter ?? getCurrentFiscalQuarter(now)
   classificationTouched.value = false
   form.proposal_classification = selectedProposal.value?.proposal_classification ?? ''
   if (isManagerStage.value) {

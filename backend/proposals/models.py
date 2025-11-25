@@ -218,7 +218,6 @@ class ImprovementProposal(models.Model):
     improvement_result = models.TextField("改善結果", blank=True)
     effect_details = models.TextField(
         "効果内容・効果算出",
-        blank=True,
         help_text="時間単価１７００円で計算すること。削減時間は「誰が」「どれだけ」がわかるように記入してください。",
     )
     reduction_hours = models.DecimalField(

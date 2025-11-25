@@ -4,10 +4,10 @@ from django.db import migrations, models
 def populate_classification_points(apps, schema_editor):
     ImprovementProposal = apps.get_model("proposals", "ImprovementProposal")
     mapping = {
-        "�ۗ����": 0,
-        "�w�͒��": 1,
-        "�A�C�f�B�A���": 4,
-        "�D�G���": 8,
+        "保留提案": 0,
+        "努力提案": 1,
+        "アイディア提案": 4,
+        "優秀提案": 8,
     }
     for classification, points in mapping.items():
         ImprovementProposal.objects.filter(
