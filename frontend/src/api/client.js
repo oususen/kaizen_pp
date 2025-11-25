@@ -1,4 +1,12 @@
-const API_BASE = (import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8001/api').replace(/\/$/, '')
+const defaultApiBase = () => {
+  // Use same host as the frontend so images and APIs work when accessed from other PCs
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/api`
+  }
+  return 'http://10.0.1.194:8001/api'
+}
+
+const API_BASE = (import.meta.env.VITE_API_BASE ?? defaultApiBase()).replace(/\/$/, '')
 
 const buildUrl = (path) => {
   const normalized = path.replace(/^\//, '')

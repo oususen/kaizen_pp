@@ -33,6 +33,11 @@ def build_media_url(request, path: str | None) -> str:
     if isinstance(path, str) and path.startswith("http"):
         return path
     media_path = f"{settings.MEDIA_URL.rstrip('/')}/{str(path).lstrip('/')}"
+    # By default return a relative media path so the frontend will resolve
+    # the host (origin). This avoids returning localhost/127.0.0.1 hosts
+    # when the API server is behind a proxy or run locally.
+    if getattr(settings, 'MEDIA_USE_RELATIVE_URLS', True):
+        return media_path
     return request.build_absolute_uri(media_path) if request else media_path
 
 

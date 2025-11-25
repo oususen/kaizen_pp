@@ -11,6 +11,12 @@ const stages = [
   { value: 'manager', label: '課長/部長' },
   { value: 'committee', label: '改善委員' },
 ]
+const classificationOptions = [
+  { value: '保留提案', label: '保留提案' },
+  { value: '努力提案', label: '努力提案' },
+  { value: 'アイディア提案', label: 'アイディア提案' },
+  { value: '優秀提案', label: '優秀提案' },
+]
 const selectedStage = ref(null)
 const proposals = ref([])
 const selectedProposal = ref(null)
@@ -25,6 +31,10 @@ const form = reactive({
   mindset: 3,
   idea: 3,
   hint: 3,
+  term: '',
+  quarter: '',
+  proposal_classification: '',
+  committee_classification: '',
 })
 
 const needsScore = (stage) => ['manager', 'committee'].includes(stage)
@@ -63,6 +73,9 @@ const visibleStages = computed(() => {
   const allowed = allowedStages.value
   return allowed.length ? stages.filter((s) => allowed.includes(s.value)) : []
 })
+
+const isCommitteeStage = computed(() => selectedStage.value === 'committee')
+const isManagerStage = computed(() => selectedStage.value === 'manager')
 
 const lowerStagesApproved = (proposal) => {
   const current = selectedStage.value
@@ -194,6 +207,10 @@ const openApprovalDialog = () => {
   form.mindset = 3
   form.idea = 3
   form.hint = 3
+  form.term = selectedProposal.value?.term ?? ''
+  form.quarter = selectedProposal.value?.quarter ?? ''
+  form.proposal_classification = selectedProposal.value?.proposal_classification ?? ''
+  form.committee_classification = selectedProposal.value?.committee_classification ?? ''
 }
 
 const closeDialog = () => {
@@ -209,11 +226,44 @@ const submitApproval = async () => {
     message.value = 'このステージの承認権限がありません'
     return
   }
+  if (isManagerStage.value && form.status === 'approved') {
+    if (!form.proposal_classification) {
+      message.value = '提案判定を選択してください'
+      return
+    }
+  }
+  if (isCommitteeStage.value) {
+    if (form.term === '' || form.term === null) {
+      message.value = '期を入力してください'
+      return
+    }
+    if (form.quarter === '' || form.quarter === null) {
+      message.value = '四半期を入力してください'
+      return
+    }
+    const quarterNum = Number(form.quarter)
+    if (![1, 2, 3, 4].includes(quarterNum)) {
+      message.value = '四半期は1〜4で入力してください'
+      return
+    }
+    if (!form.committee_classification) {
+      message.value = '提案判定を選択してください'
+      return
+    }
+  }
   const payload = {
     stage: selectedStage.value,
     status: form.status,
     comment: form.comment,
     confirmed_name: form.confirmed_name,
+  }
+  if (isManagerStage.value) {
+    payload.proposal_classification = form.proposal_classification
+  }
+  if (isCommitteeStage.value) {
+    payload.term = Number(form.term)
+    payload.quarter = Number(form.quarter)
+    payload.committee_classification = form.committee_classification
   }
   if (needsScore(selectedStage.value)) {
     payload.scores = {
@@ -453,6 +503,47 @@ onMounted(() => {
             <input v-model="form.confirmed_name" type="text" required />
           </label>
 
+          <div v-if="isManagerStage">
+            <label>
+              提案判定*
+              <select v-model="form.proposal_classification" required>
+                <option value="" disabled>選択してください</option>
+                <option v-for="opt in classificationOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </label>
+            <p v-if="selectedProposal?.committee_classification" class="classification-note">
+              改善委員判定: {{ selectedProposal.committee_classification }}
+            </p>
+          </div>
+
+          <div v-if="isCommitteeStage" class="term-quarter-grid">
+            <label>
+              期*
+              <input v-model.number="form.term" type="number" min="0" step="1" required />
+            </label>
+            <label>
+              四半期*
+              <input v-model.number="form.quarter" type="number" min="1" max="4" step="1" required />
+            </label>
+          </div>
+
+          <div v-if="isCommitteeStage">
+            <label>
+              提案判定（部課長の判定をよく確認して、異なる判定の場合、部課長へ連絡してください）*
+              <select v-model="form.committee_classification" required>
+                <option value="" disabled>選択してください</option>
+                <option v-for="opt in classificationOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </label>
+            <p v-if="selectedProposal?.proposal_classification" class="classification-note">
+              部課長判定: {{ selectedProposal.proposal_classification }}
+            </p>
+          </div>
+
           <label>
             コメント
             <textarea v-model="form.comment" rows="3"></textarea>
@@ -470,7 +561,7 @@ onMounted(() => {
                 <input v-model.number="form.idea" type="number" min="1" max="5" required />
               </label>
               <label>
-                ふり返りのヒント
+                みんなのヒント
                 <input v-model.number="form.hint" type="number" min="1" max="5" required />
               </label>
             </div>
@@ -868,6 +959,12 @@ onMounted(() => {
   gap: 1.5rem;
 }
 
+.term-quarter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
 .approval-form label {
   display: flex;
   flex-direction: column;
@@ -888,6 +985,12 @@ onMounted(() => {
   padding: 1rem;
   background: #f9fafb;
   border-radius: 8px;
+}
+
+.classification-note {
+  margin-top: 0.4rem;
+  font-size: 0.9rem;
+  color: #6b7280;
 }
 
 .scores-section h3 {
