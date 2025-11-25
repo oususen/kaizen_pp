@@ -662,8 +662,8 @@ onMounted(() => {
 
           <div v-if="isManagerStage">
             <label>
-              ポイント
-              <input :value="classificationPoints" type="number" readonly placeholder="-" />
+              ポイント（自動計算）
+              <input :value="classificationPoints" type="number" readonly disabled placeholder="-" />
             </label>
           </div>
 
