@@ -140,7 +140,7 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             ImprovementProposal.objects.select_related(
                 "department", "section", "group", "team", "proposer", "created_by"
             )
-            .prefetch_related("approvals__confirmed_by", "images")
+            .prefetch_related("approvals__confirmed_by", "images", "contributors__employee")
             .annotate(
                 total_approvals=Count("approvals", distinct=True),
                 approved_count=Count(
@@ -468,7 +468,7 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
                 Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt)))
             )
             .select_related("department", "section", "group", "team", "proposer")
-            .prefetch_related("approvals__confirmed_by")
+            .prefetch_related("approvals__confirmed_by", "contributors__employee")
         )
         buffer = generate_term_report(proposals, term_number)
         filename = f"kaizen_term_{term_number}.xlsx"
@@ -498,7 +498,7 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
                 Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt)))
             )
             .select_related("department", "section", "group", "team", "proposer")
-            .prefetch_related("approvals__confirmed_by")
+            .prefetch_related("approvals__confirmed_by", "contributors__employee")
         )
         
         from .services.reports import get_analytics_summary
@@ -546,6 +546,18 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         department_id = self.request.query_params.get("department")
+        code = self.request.query_params.get("code")
+        keyword = self.request.query_params.get("q")
+
+        if code:
+            queryset = queryset.filter(code__iexact=code)
+
+        if keyword:
+            queryset = queryset.filter(
+                Q(code__icontains=keyword)
+                | Q(name__icontains=keyword)
+                | Q(email__icontains=keyword)
+            )
 
         if department_id:
             # Get all descendant departments of the selected department

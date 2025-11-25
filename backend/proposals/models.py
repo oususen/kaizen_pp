@@ -273,6 +273,34 @@ class ImprovementProposal(models.Model):
         return f"{self.management_no} - {self.proposer_name}"
 
 
+class ProposalContributor(models.Model):
+    """協働の共同提案者を管理する中間テーブル。"""
+
+    proposal = models.ForeignKey(
+        ImprovementProposal,
+        on_delete=models.CASCADE,
+        related_name="contributors",
+    )
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contributions",
+    )
+    employee_code = models.CharField(max_length=32, blank=True)
+    employee_name = models.CharField(max_length=128, blank=True)
+    is_primary = models.BooleanField(default=False)
+    share_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    class Meta:
+        unique_together = ("proposal", "employee")
+        ordering = ["proposal_id", "-is_primary", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.proposal_id} - {self.employee_name or self.employee_id}"
+
+
 class ProposalApproval(models.Model):
     """各承認段階の状態を保持."""
 

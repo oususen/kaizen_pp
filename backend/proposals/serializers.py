@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 import logging
 
@@ -15,6 +15,7 @@ from .models import (
     UserProfile,
     UserPermission,
     ImprovementProposal,
+    ProposalContributor,
     ProposalApproval,
     ProposalImage,
 )
@@ -223,6 +224,17 @@ class EmployeeSerializer(serializers.ModelSerializer):
         read_only_fields = ("is_active",)
 
 
+class ProposalContributorSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source="employee.name", read_only=True)
+    employee_code = serializers.CharField(source="employee.code", read_only=True)
+
+    class Meta:
+        model = ProposalContributor
+        fields = ["id", "employee", "employee_name", "employee_code", "is_primary", "share_percent"]
+        extra_kwargs = {
+            "share_percent": {"read_only": True},
+        }
+
 
 class ProposalApprovalSerializer(serializers.ModelSerializer):
     confirmed_by_detail = EmployeeSerializer(source="confirmed_by", read_only=True)
@@ -282,6 +294,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
     chief_status = serializers.SerializerMethodField()
     manager_status = serializers.SerializerMethodField()
     committee_status = serializers.SerializerMethodField()
+    contributors = ProposalContributorSerializer(many=True, required=False)
 
     class Meta:
         model = ImprovementProposal
@@ -335,6 +348,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "manager_status",
             "committee_status",
             "committee_classification",
+            "contributors",
         ]
         read_only_fields = (
             "management_no",
@@ -414,11 +428,92 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             for img in filtered
         ]
 
+    def _assign_equal_shares(self, count: int) -> list[Decimal]:
+        if count <= 0:
+            return []
+        base = (Decimal("100") / Decimal(count)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        shares = [base for _ in range(count)]
+        total = sum(shares)
+        if total != Decimal("100"):
+            diff = Decimal("100") - total
+            shares[-1] = (shares[-1] + diff).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return shares
+
+    def _first_employee_from_contributors(self, contributors_data):
+        if not contributors_data:
+            return None
+        for item in contributors_data:
+            if isinstance(item, ProposalContributor):
+                if item.employee:
+                    return item.employee
+            elif isinstance(item, dict):
+                employee = item.get("employee")
+                if employee:
+                    return employee
+        return None
+
+    def _prepare_contributors(self, contributors_data, primary_employee):
+        normalized = []
+        seen = set()
+
+        for item in contributors_data or []:
+            if isinstance(item, ProposalContributor):
+                employee = item.employee
+                is_primary = item.is_primary
+            else:
+                employee = item.get("employee") if isinstance(item, dict) else None
+                is_primary = bool(item.get("is_primary")) if isinstance(item, dict) else False
+
+            if not employee or employee.id in seen:
+                continue
+            seen.add(employee.id)
+            normalized.append({"employee": employee, "is_primary": is_primary})
+
+        if primary_employee and getattr(primary_employee, "id", None) not in seen:
+            normalized.insert(0, {"employee": primary_employee, "is_primary": True})
+            seen.add(primary_employee.id)
+
+        if not normalized:
+            if primary_employee:
+                normalized = [{"employee": primary_employee, "is_primary": True}]
+            else:
+                raise serializers.ValidationError({"contributors": "共同提案者を入力してください。"})
+
+        if not any(item["is_primary"] for item in normalized):
+            normalized[0]["is_primary"] = True
+
+        shares = self._assign_equal_shares(len(normalized))
+        for item, share in zip(normalized, shares):
+            item["share_percent"] = share
+        return normalized
+
+    def _sync_contributors(self, proposal: ImprovementProposal, contributors_data):
+        ProposalContributor.objects.filter(proposal=proposal).delete()
+        if not contributors_data:
+            return
+
+        objects = []
+        for item in contributors_data:
+            employee = item.get("employee")
+            share = item.get("share_percent") or Decimal("0")
+            objects.append(
+                ProposalContributor(
+                    proposal=proposal,
+                    employee=employee,
+                    employee_code=getattr(employee, "code", "") if employee else "",
+                    employee_name=getattr(employee, "name", "") if employee else "",
+                    is_primary=item.get("is_primary", False),
+                    share_percent=share,
+                )
+            )
+        ProposalContributor.objects.bulk_create(objects)
+
     def create(self, validated_data):
         from django.core.mail import send_mail
 
         before_image = validated_data.pop("before_image", None)
         after_image = validated_data.pop("after_image", None)
+        contributors_payload = validated_data.pop("contributors", None)
         request = self.context.get("request")
         if request and request.user.is_authenticated:
             validated_data.setdefault("created_by", request.user)
@@ -430,6 +525,13 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         reduction_hours = validated_data.get("reduction_hours")
         if reduction_hours is not None and not validated_data.get("effect_amount"):
             validated_data["effect_amount"] = Decimal("1700") * reduction_hours
+        primary_employee = validated_data.get("proposer") or self._first_employee_from_contributors(contributors_payload)
+        normalized_contributors = self._prepare_contributors(contributors_payload, primary_employee)
+        primary_employee = next((c["employee"] for c in normalized_contributors if c.get("is_primary")), primary_employee)
+        if primary_employee:
+            validated_data["proposer"] = primary_employee
+            validated_data.setdefault("proposer_name", getattr(primary_employee, "name", ""))
+            validated_data.setdefault("proposer_email", getattr(primary_employee, "email", ""))
         proposal = super().create(validated_data)
         updated_fields = []
         before_files = self._collect_files(request, "before_image", "before_images")
@@ -451,6 +553,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
 
         if updated_fields:
             proposal.save(update_fields=updated_fields)
+        self._sync_contributors(proposal, normalized_contributors)
         for stage, _ in ProposalApproval.Stage.choices:
             ProposalApproval.objects.get_or_create(proposal=proposal, stage=stage)
 
@@ -462,9 +565,19 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         before_image = validated_data.pop("before_image", None)
         after_image = validated_data.pop("after_image", None)
+        contributors_payload = validated_data.pop("contributors", None)
         reduction_hours = validated_data.get("reduction_hours")
         if reduction_hours is not None and not validated_data.get("effect_amount"):
             validated_data["effect_amount"] = Decimal("1700") * reduction_hours
+        primary_employee = validated_data.get("proposer") or instance.proposer
+        normalized_contributors = None
+        if contributors_payload is not None:
+            normalized_contributors = self._prepare_contributors(contributors_payload, primary_employee)
+            primary_employee = next((c["employee"] for c in normalized_contributors if c.get("is_primary")), primary_employee)
+        if primary_employee:
+            validated_data["proposer"] = primary_employee
+            validated_data.setdefault("proposer_name", getattr(primary_employee, "name", instance.proposer_name))
+            validated_data.setdefault("proposer_email", getattr(primary_employee, "email", instance.proposer_email if hasattr(instance, "proposer_email") else ""))
         proposal = super().update(instance, validated_data)
         updated_fields = []
         request = self.context.get("request")
@@ -487,6 +600,8 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
 
         if updated_fields:
             proposal.save(update_fields=updated_fields)
+        if normalized_contributors is not None:
+            self._sync_contributors(proposal, normalized_contributors)
         return proposal
 
     def _get_approvals(self, obj: ImprovementProposal):

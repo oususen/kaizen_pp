@@ -3,6 +3,8 @@ from __future__ import annotations
 import ast
 from datetime import datetime
 from io import BytesIO
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from collections import defaultdict
 from typing import Iterable, Any
 
 import pandas as pd
@@ -69,6 +71,9 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
 
         # Department info
         dept_name = p.department.name if p.department else ""
+        contributors = getattr(p, "_prefetched_objects_cache", {}).get("contributors")
+        if contributors is None:
+            contributors = list(p.contributors.select_related("employee__department"))
 
         # Contributing business (Effect Department)
         # Assuming 'contribution_business' might be stored as a string or list in JSON
@@ -105,6 +110,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
             "出金": "",
             "効果内容・効果算出": p.effect_details or "",
             "提出日時_dt": submitted_at,
+            "contributors": contributors,
         }
         rows.append(row)
 
@@ -159,69 +165,138 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=columns)
 
-    working = df.copy()
-    working["部署"] = working["提案部門"].fillna("未設定")
-    working["提案者"] = working["提案者"].replace("", "未設定")
-    
-    # Ensure numeric types
-    for col in ["削減時間", "効果額", "マインドセット", "アイデア工夫", "みんなのヒント"]:
-        working[col] = pd.to_numeric(working[col], errors="coerce")
+    dept_col, person_col, count_col, mindset_col, idea_col, hint_col, reduction_col, effect_col = columns
+    summary: dict[tuple[str, str], dict[str, Decimal]] = {}
+
+    for _, row in df.iterrows():
+        contributors = row.get("contributors") or []
+        dept_default = row.get("提案部門") or "未設定"
+        person_default = row.get("提案者") or "未設定"
+        reduction_val = _to_decimal(row.get("削減時間")) or Decimal("0")
+        effect_val = _to_decimal(row.get("効果額")) or Decimal("0")
+        mindset = _to_decimal(row.get("マインドセット"))
+        idea = _to_decimal(row.get("アイデア"))
+        hint = _to_decimal(row.get("ヒント"))
+
+        def ensure_entry(dept_name, person_name):
+            key = (dept_name or "未設定", person_name or "未設定")
+            if key not in summary:
+                summary[key] = {
+                    "count": Decimal("0"),
+                    "reduction": Decimal("0"),
+                    "effect": Decimal("0"),
+                    "mindset_sum": Decimal("0"),
+                    "mindset_w": Decimal("0"),
+                    "idea_sum": Decimal("0"),
+                    "idea_w": Decimal("0"),
+                    "hint_sum": Decimal("0"),
+                    "hint_w": Decimal("0"),
+                }
+            return summary[key]
+
+        if contributors:
+            for contrib in contributors:
+                employee = getattr(contrib, "employee", None)
+                dept_name = getattr(getattr(employee, "department", None), "name", None) or dept_default
+                person_name = getattr(employee, "name", None) or person_default
+                entry = ensure_entry(dept_name, person_name)
+                share = _to_decimal(getattr(contrib, "share_percent", None)) or Decimal("0")
+                share_ratio = (share / Decimal("100")).quantize(Decimal("0.0001"))
+                entry["count"] += share_ratio
+
+                if mindset is not None:
+                    entry["mindset_sum"] += mindset * share_ratio
+                    entry["mindset_w"] += share_ratio
+                if idea is not None:
+                    entry["idea_sum"] += idea * share_ratio
+                    entry["idea_w"] += share_ratio
+                if hint is not None:
+                    entry["hint_sum"] += hint * share_ratio
+                    entry["hint_w"] += share_ratio
+
+                if getattr(contrib, "is_primary", False):
+                    entry["reduction"] += reduction_val
+                    entry["effect"] += effect_val
+        else:
+            entry = ensure_entry(dept_default, person_default)
+            entry["count"] += Decimal("1")
+            if mindset is not None:
+                entry["mindset_sum"] += mindset
+                entry["mindset_w"] += Decimal("1")
+            if idea is not None:
+                entry["idea_sum"] += idea
+                entry["idea_w"] += Decimal("1")
+            if hint is not None:
+                entry["hint_sum"] += hint
+                entry["hint_w"] += Decimal("1")
+            entry["reduction"] += reduction_val
+            entry["effect"] += effect_val
 
     rows = []
-    for (dept, person), group in working.groupby(["部署", "提案者"]):
+
+    def avg(sum_val: Decimal, weight: Decimal):
+        if weight == 0:
+            return ""
+        return float((sum_val / weight).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+    for (dept_name, person_name), values in summary.items():
         rows.append({
-            "部署": dept,
-            "提案者": person,
-            "件数": int(group.shape[0]),
-            "平均マインド": round(group["マインドセット"].mean(skipna=True), 2)
-            if group["マインドセット"].notna().any() else "",
-            "平均アイデア": round(group["アイデア工夫"].mean(skipna=True), 2)
-            if group["アイデア工夫"].notna().any() else "",
-            "平均ヒント": round(group["みんなのヒント"].mean(skipna=True), 2)
-            if group["みんなのヒント"].notna().any() else "",
-            "削減時間合計[Hr/月]": round(group["削減時間"].sum(), 2),
-            "効果額合計[¥/月]": int(group["効果額"].sum()),
+            dept_col: dept_name,
+            person_col: person_name,
+            count_col: float(values["count"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            mindset_col: avg(values["mindset_sum"], values["mindset_w"]),
+            idea_col: avg(values["idea_sum"], values["idea_w"]),
+            hint_col: avg(values["hint_sum"], values["hint_w"]),
+            reduction_col: float(values["reduction"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            effect_col: int(values["effect"].quantize(Decimal("0"))),
         })
 
     result = pd.DataFrame(rows, columns=columns)
-    return result.sort_values(["部署", "提案者"]).reset_index(drop=True)
-
-
+    return result.sort_values([dept_col, person_col]).reset_index(drop=True)
 def build_department_month_matrix(df: pd.DataFrame, term_number: int) -> pd.DataFrame:
     month_numbers = fiscal.fiscal_month_sequence()
     month_columns = [f"{month}月" for month in month_numbers]
-    columns = ["部署"] + month_columns + ["年度合計"]
+    columns = ["部署"] + month_columns + ["年間合計"]
     
     if df.empty:
         return pd.DataFrame(columns=columns)
 
-    working = df.copy()
-    working["部署"] = working["提案部門"].fillna("未設定")
-    working = working[working["提出日時_dt"].notna()]
+    dept_totals: dict[str, dict[int, Decimal]] = defaultdict(lambda: {m: Decimal("0") for m in month_numbers})
 
-    if working.empty:
-        return pd.DataFrame(columns=columns)
+    for _, row in df.iterrows():
+        submitted = row.get("提出日時_dt")
+        if submitted is None or pd.isna(submitted):
+            continue
+        month = getattr(submitted, "month", None)
+        if month not in month_numbers:
+            continue
+
+        contributors = row.get("contributors") or []
+        dept_default = row.get("提案部門") or "未設定"
+
+        if contributors:
+            for contrib in contributors:
+                employee = getattr(contrib, "employee", None)
+                dept_name = getattr(getattr(employee, "department", None), "name", None) or dept_default
+                share = _to_decimal(getattr(contrib, "share_percent", None)) or Decimal("0")
+                share_ratio = (share / Decimal("100")).quantize(Decimal("0.0001"))
+                dept_totals[dept_name][month] += share_ratio
+        else:
+            dept_totals[dept_default][month] += Decimal("1")
 
     rows = []
-    for dept, group in working.groupby("部署"):
-        row = {"部署": dept}
-        total = 0
+    for dept_name, month_map in dept_totals.items():
+        row = {"部署": dept_name}
+        total = Decimal("0")
         for month in month_numbers:
-            # Check month from '提出日時_dt'
-            count = group[group["提出日時_dt"].dt.month == month].shape[0]
-            row[f"{month}月"] = int(count)
-            total += count
-        row["年度合計"] = int(total)
+            value = month_map.get(month, Decimal("0"))
+            value = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            row[f"{month}月"] = float(value)
+            total += value
+        row["年間合計"] = float(total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
         rows.append(row)
 
-    result = pd.DataFrame(rows)
-    for column in columns:
-        if column not in result.columns:
-            result[column] = 0 if column != "部署" else ""
-            
-    return result[columns].sort_values("部署").reset_index(drop=True)
-
-
+    return pd.DataFrame(rows, columns=columns).sort_values("部署").reset_index(drop=True)
 def get_analytics_summary(proposals: Iterable[ImprovementProposal], term_number: int) -> dict[str, Any]:
     """
     Generate analytics data for the frontend dashboard.
@@ -236,6 +311,18 @@ def get_analytics_summary(proposals: Iterable[ImprovementProposal], term_number:
         "person_summary": person_summary.to_dict(orient="records"),
         "department_summary": department_summary.to_dict(orient="records"),
     }
+
+
+def _to_decimal(value: Any) -> Decimal | None:
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
 
 
 def _normalize_text_list(value: Any) -> str:
