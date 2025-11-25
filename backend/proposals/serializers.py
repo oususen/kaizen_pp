@@ -309,6 +309,9 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "effect_amount",
             "proposal_classification",
             "contribution_business",
+            "term",
+            "quarter",
+            "serial_number",
             "mindset_score",
             "idea_score",
             "hint_score",
@@ -740,9 +743,9 @@ class ApprovalActionSerializer(serializers.Serializer):
             if not proposal_classification:
                 raise serializers.ValidationError('proposal_classification is required at manager approval')
 
-        if stage in {ProposalApproval.Stage.MANAGER, ProposalApproval.Stage.COMMITTEE}:
+        if stage == ProposalApproval.Stage.MANAGER:
             if not scores:
-                raise serializers.ValidationError('scores are required for this stage')
+                raise serializers.ValidationError('scores are required for manager approval')
             for key in ('mindset', 'idea', 'hint'):
                 if key not in scores:
                     raise serializers.ValidationError(f"missing score: {key}")

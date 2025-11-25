@@ -78,9 +78,9 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
 
         row = {
             "obj": p,  # Keep reference for debugging if needed
-            "期": fiscal.fiscal_term(submitted_at) if submitted_at else None,
-            "四半期": fiscal.fiscal_quarter(submitted_at) if submitted_at else None,
-            "通し番号": i,
+            "期": p.term or (fiscal.fiscal_term(submitted_at) if submitted_at else None),
+            "四半期": p.quarter or (fiscal.fiscal_quarter(submitted_at) if submitted_at else None),
+            "通し番号": p.serial_number or i,
             "年": submitted_at.year if submitted_at else None,
             "月": submitted_at.month if submitted_at else None,
             "日": submitted_at.day if submitted_at else None,

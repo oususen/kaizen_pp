@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, time
 
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Q, Max
 from django.http import HttpResponse
 from django.contrib.auth import authenticate, login, logout
 from django.utils.decorators import method_decorator
@@ -280,7 +280,7 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             approval.confirmed_by = user.employee_profile
             
         scores = data.get("scores") or {}
-        if stage in {ProposalApproval.Stage.MANAGER, ProposalApproval.Stage.COMMITTEE}:
+        if stage == ProposalApproval.Stage.MANAGER:
             approval.mindset_score = scores.get("mindset")
             approval.idea_score = scores.get("idea")
             approval.hint_score = scores.get("hint")
@@ -290,9 +290,18 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         approval.save()
 
         if stage == ProposalApproval.Stage.MANAGER and status_val == ProposalApproval.Status.APPROVED:
+            updated_fields = []
             if proposal_classification:
                 proposal.proposal_classification = proposal_classification
-                proposal.save(update_fields=["proposal_classification"])
+                updated_fields.append("proposal_classification")
+            # 評価基準スコアを提案テーブルに保存
+            if scores:
+                proposal.mindset_score = scores.get("mindset")
+                proposal.idea_score = scores.get("idea")
+                proposal.hint_score = scores.get("hint")
+                updated_fields.extend(["mindset_score", "idea_score", "hint_score"])
+            if updated_fields:
+                proposal.save(update_fields=updated_fields)
 
         if stage == ProposalApproval.Stage.COMMITTEE and status_val == ProposalApproval.Status.APPROVED:
             updated_fields = []
@@ -305,6 +314,15 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             if quarter is not None:
                 proposal.quarter = quarter
                 updated_fields.append("quarter")
+
+            # 通し番号を自動採番（期ごとに連番）
+            if term is not None:
+                max_serial = ImprovementProposal.objects.filter(
+                    term=term
+                ).aggregate(Max('serial_number'))['serial_number__max']
+                proposal.serial_number = (max_serial or 0) + 1
+                updated_fields.append("serial_number")
+
             if updated_fields:
                 proposal.save(update_fields=updated_fields)
 
