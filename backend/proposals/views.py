@@ -95,6 +95,7 @@ def calculate_classification_points(classification: str | None) -> int | None:
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.select_related("parent")
     serializer_class = DepartmentSerializer
+    permission_classes = [AllowAny]
     pagination_class = None
 
     def get_queryset(self):
@@ -465,7 +466,9 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         end_dt = datetime.combine(end_date, time.max)
         proposals = (
             ImprovementProposal.objects.filter(
-                Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt)))
+                Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt))),
+                approvals__stage=ProposalApproval.Stage.COMMITTEE,
+                approvals__status=ProposalApproval.Status.APPROVED
             )
             .select_related("department", "section", "group", "team", "proposer")
             .prefetch_related("approvals__confirmed_by", "contributors__employee")
@@ -492,15 +495,17 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         start_date, end_date = fiscal.term_date_range(term_number)
         start_dt = datetime.combine(start_date, time.min)
         end_dt = datetime.combine(end_date, time.max)
-        
+
         proposals = (
             ImprovementProposal.objects.filter(
-                Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt)))
+                Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt))),
+                approvals__stage=ProposalApproval.Stage.COMMITTEE,
+                approvals__status=ProposalApproval.Status.APPROVED
             )
             .select_related("department", "section", "group", "team", "proposer")
             .prefetch_related("approvals__confirmed_by", "contributors__employee")
         )
-        
+
         from .services.reports import get_analytics_summary
         data = get_analytics_summary(proposals, term_number)
         return Response(data)
@@ -540,7 +545,7 @@ class CurrentEmployeeView(APIView):
 class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Employee.objects.select_related("department")
     serializer_class = EmployeeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     pagination_class = None
 
     def get_queryset(self):

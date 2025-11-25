@@ -213,6 +213,7 @@ class ImprovementProposal(models.Model):
         related_name="improvement_proposals",
     )
     proposer_name = models.CharField("提案者", max_length=128)
+    proposer_email = models.EmailField("提案者メール", blank=True, default="")
     problem_summary = models.TextField("問題点")
     improvement_plan = models.TextField("改善案")
     improvement_result = models.TextField("改善結果", blank=True)

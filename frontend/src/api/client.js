@@ -62,6 +62,14 @@ const request = async (path, options = {}) => {
     } catch (error) {
       detail = response.statusText
     }
+    // Provide more specific error messages
+    if (response.status === 401) {
+      throw new Error('認証が必要です。ログインしてください。')
+    } else if (response.status === 403) {
+      throw new Error('この操作を実行する権限がありません。')
+    } else if (response.status === 404) {
+      throw new Error('リソースが見つかりませんでした。')
+    }
     throw new Error(detail || 'サーバーエラーが発生しました')
   }
   return handleResponse(response)
@@ -131,6 +139,20 @@ export const createProposal = (payload) => {
   appendFiles(payload.after_images, 'after_images')
   Object.entries(payload).forEach(([key, value]) => {
     if (key === 'before_images' || key === 'after_images') {
+      return
+    }
+    if (key === 'contributors') {
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => {
+          if (!item) return
+          if (item.employee) {
+            formData.append(`contributors[${index}][employee]`, item.employee)
+          }
+          if (item.is_primary !== undefined) {
+            formData.append(`contributors[${index}][is_primary]`, item.is_primary)
+          }
+        })
+      }
       return
     }
     if (value === undefined || value === null || value === '') {
