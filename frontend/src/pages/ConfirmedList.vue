@@ -1,11 +1,34 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { fetchConfirmed } from '../api/client'
+import { fetchConfirmed, fetchDepartments, fetchProposals } from '../api/client'
 
 const proposals = ref([])
 const selectedProposal = ref(null)
 const loading = ref(false)
 const message = ref('')
+const departments = ref([])
+const showFilters = ref(false)
+
+// フィルタ設定
+const filters = ref({
+  q: '',
+  term: '',
+  quarter: '',
+  department: '',
+  proposal_classification: '',
+  mindset_score_min: '',
+  idea_score_min: '',
+  hint_score_min: '',
+  submitted_at_from: '',
+  submitted_at_to: '',
+})
+
+const classificationOptions = [
+  { value: '保留提案', label: '保留提案' },
+  { value: '努力提案', label: '努力提案' },
+  { value: 'アイディア提案', label: 'アイディア提案' },
+  { value: '優秀提案', label: '優秀提案' },
+]
 
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString('ja-JP') : '')
 
@@ -18,7 +41,17 @@ const loadData = async () => {
   loading.value = true
   message.value = ''
   try {
-    proposals.value = await fetchConfirmed()
+    // フィルタパラメータを構築
+    const params = {
+      status: 'completed',
+      ...Object.fromEntries(
+        Object.entries(filters.value).filter(([_, value]) => value !== '' && value !== null)
+      ),
+    }
+
+    // APIを直接呼び出してフィルタを適用
+    proposals.value = await fetchProposals(params)
+
     if (selectedProposal.value) {
       const updated = proposals.value.find((p) => p.id === selectedProposal.value.id)
       selectedProposal.value = updated || null
@@ -28,6 +61,38 @@ const loadData = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadDepartments = async () => {
+  try {
+    departments.value = await fetchDepartments({ level: 'division' })
+  } catch (error) {
+    console.error('部門データの取得に失敗:', error)
+  }
+}
+
+const applyFilters = () => {
+  loadData()
+}
+
+const resetFilters = () => {
+  filters.value = {
+    q: '',
+    term: '',
+    quarter: '',
+    department: '',
+    proposal_classification: '',
+    mindset_score_min: '',
+    idea_score_min: '',
+    hint_score_min: '',
+    submitted_at_from: '',
+    submitted_at_to: '',
+  }
+  loadData()
+}
+
+const toggleFilters = () => {
+  showFilters.value = !showFilters.value
 }
 
 const selectProposal = (proposal) => {
@@ -51,7 +116,10 @@ const normalizedImages = (kind) => {
 const beforeImages = computed(() => normalizedImages('before'))
 const afterImages = computed(() => normalizedImages('after'))
 
-onMounted(loadData)
+onMounted(async () => {
+  await loadDepartments()
+  await loadData()
+})
 </script>
 
 <template>
@@ -61,7 +129,88 @@ onMounted(loadData)
         <h2>✔️ 確認済み一覧</h2>
         <p>承認完了した提案の詳細を確認できます。</p>
       </div>
-      <button class="ghost" @click="loadData">再読み込み</button>
+      <div class="header-actions">
+        <button class="btn-secondary" @click="toggleFilters">
+          {{ showFilters ? 'フィルタを閉じる' : 'フィルタを開く' }}
+        </button>
+        <button class="ghost" @click="loadData">再読み込み</button>
+      </div>
+    </div>
+
+    <div v-if="showFilters" class="filter-panel">
+      <h3>フィルタ条件</h3>
+      <div class="filter-grid">
+        <div class="filter-item">
+          <label>検索（管理No・提案者・テーマ）</label>
+          <input v-model="filters.q" type="text" placeholder="キーワード検索" />
+        </div>
+
+        <div class="filter-item">
+          <label>期</label>
+          <input v-model="filters.term" type="number" placeholder="例: 1" min="1" />
+        </div>
+
+        <div class="filter-item">
+          <label>四半期</label>
+          <select v-model="filters.quarter">
+            <option value="">すべて</option>
+            <option value="1">第1四半期</option>
+            <option value="2">第2四半期</option>
+            <option value="3">第3四半期</option>
+            <option value="4">第4四半期</option>
+          </select>
+        </div>
+
+        <div class="filter-item">
+          <label>部門</label>
+          <select v-model="filters.department">
+            <option value="">すべて</option>
+            <option v-for="dept in departments" :key="dept.id" :value="dept.id">
+              {{ dept.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-item">
+          <label>提案判定</label>
+          <select v-model="filters.proposal_classification">
+            <option value="">すべて</option>
+            <option v-for="opt in classificationOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-item">
+          <label>マインドセット（以上）</label>
+          <input v-model.number="filters.mindset_score_min" type="number" min="1" max="10" placeholder="例: 5" />
+        </div>
+
+        <div class="filter-item">
+          <label>アイデア工夫（以上）</label>
+          <input v-model.number="filters.idea_score_min" type="number" min="1" max="10" placeholder="例: 5" />
+        </div>
+
+        <div class="filter-item">
+          <label>みんなのヒント（以上）</label>
+          <input v-model.number="filters.hint_score_min" type="number" min="1" max="10" placeholder="例: 5" />
+        </div>
+
+        <div class="filter-item">
+          <label>提出日（開始）</label>
+          <input v-model="filters.submitted_at_from" type="date" />
+        </div>
+
+        <div class="filter-item">
+          <label>提出日（終了）</label>
+          <input v-model="filters.submitted_at_to" type="date" />
+        </div>
+      </div>
+
+      <div class="filter-actions">
+        <button class="btn-primary" @click="applyFilters">フィルタ適用</button>
+        <button class="btn-secondary" @click="resetFilters">リセット</button>
+      </div>
     </div>
 
     <div v-if="message" class="alert error">{{ message }}</div>
@@ -240,6 +389,99 @@ onMounted(loadData)
   margin-bottom: 1.5rem;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.filter-panel {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-panel h3 {
+  margin: 0 0 1rem 0;
+  color: #374151;
+  font-size: 1.1rem;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-item label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.filter-item input,
+.filter-item select {
+  padding: 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: white;
+}
+
+.filter-item input:focus,
+.filter-item select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+}
+
+.btn-secondary {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.btn-secondary:hover {
+  background: #4b5563;
 }
 
 .content-layout {

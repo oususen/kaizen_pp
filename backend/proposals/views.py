@@ -118,6 +118,13 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         keyword = params.get("q")
         department_id = params.get("department")
         term_value = params.get("term")
+        quarter_value = params.get("quarter")
+        proposal_classification_value = params.get("proposal_classification")
+        mindset_score_min = params.get("mindset_score_min")
+        idea_score_min = params.get("idea_score_min")
+        hint_score_min = params.get("hint_score_min")
+        submitted_at_from = params.get("submitted_at_from")
+        submitted_at_to = params.get("submitted_at_to")
 
         if department_id:
             queryset = queryset.filter(department_id=department_id)
@@ -139,6 +146,54 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
                     Q(term=term_number) | (Q(term__isnull=True) & Q(submitted_at__range=(start_dt, end_dt)))
                 )
             except ValueError:
+                pass
+
+        if quarter_value:
+            try:
+                quarter_number = int(quarter_value)
+                queryset = queryset.filter(quarter=quarter_number)
+            except ValueError:
+                pass
+
+        if proposal_classification_value:
+            queryset = queryset.filter(
+                Q(proposal_classification=proposal_classification_value)
+                | Q(committee_classification=proposal_classification_value)
+            )
+
+        if mindset_score_min:
+            try:
+                score = int(mindset_score_min)
+                queryset = queryset.filter(mindset_score__gte=score)
+            except ValueError:
+                pass
+
+        if idea_score_min:
+            try:
+                score = int(idea_score_min)
+                queryset = queryset.filter(idea_score__gte=score)
+            except ValueError:
+                pass
+
+        if hint_score_min:
+            try:
+                score = int(hint_score_min)
+                queryset = queryset.filter(hint_score__gte=score)
+            except ValueError:
+                pass
+
+        if submitted_at_from:
+            try:
+                from_date = datetime.fromisoformat(submitted_at_from.replace('Z', '+00:00'))
+                queryset = queryset.filter(submitted_at__gte=from_date)
+            except (ValueError, AttributeError):
+                pass
+
+        if submitted_at_to:
+            try:
+                to_date = datetime.fromisoformat(submitted_at_to.replace('Z', '+00:00'))
+                queryset = queryset.filter(submitted_at__lte=to_date)
+            except (ValueError, AttributeError):
                 pass
 
         stage_choices = dict(ProposalApproval.Stage.choices)
