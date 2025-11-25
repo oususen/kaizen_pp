@@ -17,8 +17,8 @@ const form = reactive({
   problem_summary: '',
   improvement_plan: '',
   improvement_result: '',
+  effect_details: '',
   contribution_business: [],
-  comment: '',
   reduction_hours: '',
   before_images: [],
   after_images: [],
@@ -104,8 +104,8 @@ const resetForm = () => {
     problem_summary: '',
     improvement_plan: '',
     improvement_result: '',
+    effect_details: '',
     contribution_business: [],
-    comment: '',
     reduction_hours: '',
     before_images: [],
     after_images: [],
@@ -221,8 +221,8 @@ const submitProposal = async () => {
       problem_summary: form.problem_summary,
       improvement_plan: form.improvement_plan,
       improvement_result: form.improvement_result,
+      effect_details: form.effect_details,
       contribution_business: form.contribution_business.join(', '),
-      comment: form.comment,
       reduction_hours: form.reduction_hours,
       before_images: form.before_images,
       after_images: form.after_images,
@@ -325,6 +325,18 @@ onMounted(() => {
         <textarea v-model="form.improvement_result" rows="3" required></textarea>
       </label>
 
+      <label class="span">
+        効果内容・効果算出
+        <textarea
+          v-model="form.effect_details"
+          rows="3"
+          placeholder="時間単価１７００円で計算すること。削減時間は「誰が」「どれだけ」がわかるように記入してください。"
+        ></textarea>
+        <small style="color: #64748b; font-style: italic;">
+          ※時間単価１７００円で計算すること。削減時間は「誰が」「どれだけ」がわかるように記入してください。
+        </small>
+      </label>
+
       <label>
         削減時間 (Hr/月)*
         <input v-model.number="form.reduction_hours" type="number" min="0" step="0.5" required />
@@ -338,11 +350,6 @@ onMounted(() => {
           </option>
         </select>
         <small>Ctrlキーで複数選択</small>
-      </label>
-
-      <label class="span">
-        コメント・備考
-        <textarea v-model="form.comment" rows="2"></textarea>
       </label>
 
       <div class="image-upload-section span">

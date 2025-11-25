@@ -216,6 +216,11 @@ class ImprovementProposal(models.Model):
     problem_summary = models.TextField("問題点")
     improvement_plan = models.TextField("改善案")
     improvement_result = models.TextField("改善結果", blank=True)
+    effect_details = models.TextField(
+        "効果内容・効果算出",
+        blank=True,
+        help_text="時間単価１７００円で計算すること。削減時間は「誰が」「どれだけ」がわかるように記入してください。",
+    )
     reduction_hours = models.DecimalField(
         "削減時間(Hr/月)",
         max_digits=6,
@@ -244,7 +249,6 @@ class ImprovementProposal(models.Model):
     )
     term = models.IntegerField("期", null=True, blank=True)
     quarter = models.PositiveSmallIntegerField("四半期", null=True, blank=True)
-    comment = models.TextField("コメント", blank=True)
     contribution_business = models.CharField("貢献事業", max_length=255, blank=True)
     mindset_score = models.PositiveSmallIntegerField("マインドセット", null=True, blank=True)
     idea_score = models.PositiveSmallIntegerField("アイデア工夫", null=True, blank=True)

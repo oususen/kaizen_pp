@@ -226,6 +226,11 @@ onMounted(loadProposals)
             <p class="text-content">{{ selectedProposal.improvement_result }}</p>
           </div>
 
+          <div v-if="selectedProposal.effect_details" class="detail-section">
+            <h3>効果内容・効果算出</h3>
+            <p class="text-content">{{ selectedProposal.effect_details }}</p>
+          </div>
+
           <div class="detail-section">
             <h3>効果</h3>
             <div class="detail-grid">

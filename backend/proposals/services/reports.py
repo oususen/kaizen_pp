@@ -16,7 +16,7 @@ SUMMARY_COLUMNS = [
     "効果部門", "提案者", "社員", "派遣", "実習生", "改善テーマ",
     "マインド", "アイデア", "ヒント", "SDGs", "安全", "判定区分",
     "保留", "提案ポイント", "報奨金", "月額効果[¥/月]",
-    "削減工数[Hr/月]", "出金", "注記"
+    "削減工数[Hr/月]", "出金", "効果内容・効果算出"
 ]
 
 
@@ -103,7 +103,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
             "効果額": p.effect_amount or 0.0,
             "削減時間": p.reduction_hours or 0.0,
             "出金": "",
-            "注記": p.comment,
+            "効果内容・効果算出": p.effect_details or "",
             "提出日時_dt": submitted_at,
         }
         rows.append(row)
@@ -145,7 +145,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
             "月額効果[¥/月]": row["効果額"],
             "削減工数[Hr/月]": row["削減時間"],
             "出金": row["出金"],
-            "注記": row["注記"]
+            "効果内容・効果算出": row["効果内容・効果算出"]
         })
     
     return pd.DataFrame(summary_rows, columns=SUMMARY_COLUMNS), raw_df
