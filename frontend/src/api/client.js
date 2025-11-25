@@ -150,6 +150,11 @@ export const createProposal = (payload) => {
   })
 }
 
+export const deleteProposal = (id) =>
+  request(`/improvement-proposals/${id}/`, {
+    method: 'DELETE',
+  })
+
 export const approveProposal = (id, payload) =>
   request(`/improvement-proposals/${id}/approve/`, {
     method: 'POST',

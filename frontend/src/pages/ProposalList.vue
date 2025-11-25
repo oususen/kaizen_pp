@@ -1,7 +1,9 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { exportTermReport, fetchProposals } from '../api/client'
+import { exportTermReport, fetchProposals, deleteProposal } from '../api/client'
+import { useAuth } from '../stores/auth'
 
+const auth = useAuth()
 const stageOptions = [
   { value: '', label: 'すべて' },
   { value: 'supervisor', label: '班長' },
@@ -28,6 +30,8 @@ const proposals = ref([])
 const selectedProposal = ref(null)
 const loading = ref(false)
 const message = ref('')
+const deleteDialogOpen = ref(false)
+const proposalToDelete = ref(null)
 
 const stageLabel = (value) => stageOptions.find((option) => option.value === value)?.label ?? value
 
@@ -89,6 +93,47 @@ const normalizedImages = (kind) => {
 
 const beforeImages = computed(() => normalizedImages('before'))
 const afterImages = computed(() => normalizedImages('after'))
+
+// 班長以上の権限チェック
+const canDelete = computed(() => {
+  const role = auth.state.employee?.profile?.role || auth.state.employee?.role
+  const allowedRoles = ['supervisor', 'chief', 'manager', 'committee', 'committee_chair', 'admin']
+  return allowedRoles.includes(role)
+})
+
+const openDeleteDialog = (proposal) => {
+  proposalToDelete.value = proposal
+  deleteDialogOpen.value = true
+}
+
+const closeDeleteDialog = () => {
+  deleteDialogOpen.value = false
+  proposalToDelete.value = null
+}
+
+const confirmDelete = async () => {
+  if (!proposalToDelete.value) return
+
+  const proposalId = proposalToDelete.value.id
+  loading.value = true
+  message.value = ''
+  try {
+    await deleteProposal(proposalId)
+    message.value = '提案を削除しました'
+
+    // 選択中の提案が削除された場合は選択解除
+    if (selectedProposal.value?.id === proposalId) {
+      selectedProposal.value = null
+    }
+
+    closeDeleteDialog()
+    await loadProposals()
+  } catch (error) {
+    message.value = error.message ?? '削除に失敗しました'
+  } finally {
+    loading.value = false
+  }
+}
 
 const downloadReport = async () => {
   if (!filters.term) {
@@ -180,7 +225,10 @@ onMounted(loadProposals)
       <div v-if="selectedProposal" class="proposal-detail">
         <div class="detail-header">
           <h2>提案詳細</h2>
-          <button @click="closeDetail" class="btn-close">×</button>
+          <div class="detail-actions">
+            <button v-if="canDelete" @click="openDeleteDialog(selectedProposal)" class="btn-delete">削除</button>
+            <button @click="closeDetail" class="btn-back">← 戻る</button>
+          </div>
         </div>
 
         <div class="detail-content">
@@ -270,6 +318,7 @@ onMounted(loadProposals)
                 <div v-if="stageApproval('supervisor')" class="approval-info">
                   <small>承認者: {{ stageApproval('supervisor').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('supervisor').confirmed_at) }}</small>
+                  <small v-if="stageApproval('supervisor').comment" class="comment">コメント: {{ stageApproval('supervisor').comment }}</small>
                 </div>
               </div>
               <div class="approval-item">
@@ -280,6 +329,7 @@ onMounted(loadProposals)
                 <div v-if="stageApproval('chief')" class="approval-info">
                   <small>承認者: {{ stageApproval('chief').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('chief').confirmed_at) }}</small>
+                  <small v-if="stageApproval('chief').comment" class="comment">コメント: {{ stageApproval('chief').comment }}</small>
                 </div>
               </div>
               <div class="approval-item">
@@ -290,6 +340,7 @@ onMounted(loadProposals)
                 <div v-if="stageApproval('manager')" class="approval-info">
                   <small>承認者: {{ stageApproval('manager').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('manager').confirmed_at) }}</small>
+                  <small v-if="stageApproval('manager').comment" class="comment">コメント: {{ stageApproval('manager').comment }}</small>
                 </div>
               </div>
               <div class="approval-item">
@@ -300,7 +351,58 @@ onMounted(loadProposals)
                 <div v-if="stageApproval('committee')" class="approval-info">
                   <small>承認者: {{ stageApproval('committee').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('committee').confirmed_at) }}</small>
+                  <small v-if="stageApproval('committee').comment" class="comment">コメント: {{ stageApproval('committee').comment }}</small>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedProposal.term || selectedProposal.quarter" class="detail-section">
+            <h3>期・四半期</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <label>期</label>
+                <span>{{ selectedProposal.term || '-' }}</span>
+              </div>
+              <div class="detail-item">
+                <label>四半期</label>
+                <span>{{ selectedProposal.quarter ? `第${selectedProposal.quarter}四半期` : '-' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedProposal.mindset_score || selectedProposal.idea_score || selectedProposal.hint_score" class="detail-section">
+            <h3>評価基準の結果</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <label>マインドセット</label>
+                <span>{{ selectedProposal.mindset_score || '-' }}点</span>
+              </div>
+              <div class="detail-item">
+                <label>アイデア工夫</label>
+                <span>{{ selectedProposal.idea_score || '-' }}点</span>
+              </div>
+              <div class="detail-item">
+                <label>みんなのヒント</label>
+                <span>{{ selectedProposal.hint_score || '-' }}点</span>
+              </div>
+              <div class="detail-item">
+                <label>合計ポイント</label>
+                <span class="total-points">{{ (selectedProposal.mindset_score || 0) + (selectedProposal.idea_score || 0) + (selectedProposal.hint_score || 0) }}点</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedProposal.proposal_classification || selectedProposal.committee_classification" class="detail-section">
+            <h3>提案判定</h3>
+            <div class="detail-grid">
+              <div v-if="selectedProposal.proposal_classification" class="detail-item">
+                <label>部課長判定</label>
+                <span class="classification-badge">{{ selectedProposal.proposal_classification }}</span>
+              </div>
+              <div v-if="selectedProposal.committee_classification" class="detail-item">
+                <label>改善委員判定</label>
+                <span class="classification-badge">{{ selectedProposal.committee_classification }}</span>
               </div>
             </div>
           </div>
@@ -309,6 +411,23 @@ onMounted(loadProposals)
 
       <div v-else class="no-selection">
         <p>提案を選択すると詳細が表示されます</p>
+      </div>
+    </div>
+
+    <!-- 削除確認ダイアログ -->
+    <div v-if="deleteDialogOpen" class="modal-overlay" @click.self="closeDeleteDialog">
+      <div class="modal">
+        <h2>提案の削除</h2>
+        <p class="modal-subtitle">本当にこの提案を削除しますか？</p>
+        <div v-if="proposalToDelete" class="delete-confirmation">
+          <p><strong>管理No:</strong> {{ proposalToDelete.management_no }}</p>
+          <p><strong>テーマ:</strong> {{ proposalToDelete.deployment_item }}</p>
+          <p><strong>提案者:</strong> {{ proposalToDelete.proposer_name }}</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" @click="closeDeleteDialog" class="btn-cancel">キャンセル</button>
+          <button type="button" @click="confirmDelete" class="btn-danger">削除する</button>
+        </div>
       </div>
     </div>
   </section>
@@ -500,22 +619,42 @@ onMounted(loadProposals)
   color: #1f2937;
 }
 
-.btn-close {
-  width: 32px;
-  height: 32px;
+.detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-back {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.btn-delete {
+  padding: 0.5rem 1rem;
   border: none;
   background: #ef4444;
   color: white;
-  border-radius: 50%;
-  font-size: 1.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  transition: background 0.2s;
 }
 
-.btn-close:hover {
+.btn-delete:hover {
   background: #dc2626;
 }
 
@@ -627,6 +766,29 @@ onMounted(loadProposals)
   color: #6b7280;
 }
 
+.approval-info small.comment {
+  color: #374151;
+  font-weight: 500;
+  margin-top: 0.3rem;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.total-points {
+  font-weight: 700;
+  color: #3b82f6;
+  font-size: 1.1rem;
+}
+
+.classification-badge {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
 .no-selection {
   display: flex;
   align-items: center;
@@ -646,6 +808,90 @@ onMounted(loadProposals)
 .alert.error {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.modal h2 {
+  margin: 0 0 0.5rem 0;
+  color: #1f2937;
+  font-size: 1.5rem;
+}
+
+.modal-subtitle {
+  margin: 0 0 1.5rem 0;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.delete-confirmation {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.delete-confirmation p {
+  margin: 0.5rem 0;
+  color: #991b1b;
+  font-size: 0.95rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: 0.6rem 1.5rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-cancel:hover {
+  background: #f3f4f6;
+}
+
+.btn-danger {
+  padding: 0.6rem 1.5rem;
+  border: none;
+  background: #ef4444;
+  color: white;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
 }
 
 @media (max-width: 1024px) {

@@ -243,7 +243,7 @@ onMounted(async () => {
       <div v-if="selectedProposal" class="proposal-detail">
         <div class="detail-header">
           <h2>提案詳細</h2>
-          <button @click="closeDetail" class="btn-close">×</button>
+          <button @click="closeDetail" class="btn-back">← 戻る</button>
         </div>
 
         <div class="detail-content">
@@ -333,6 +333,7 @@ onMounted(async () => {
                 <div v-if="stageApproval('supervisor')" class="approval-info">
                   <small>承認者: {{ stageApproval('supervisor').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('supervisor').confirmed_at) }}</small>
+                  <small v-if="stageApproval('supervisor').comment" class="comment">コメント: {{ stageApproval('supervisor').comment }}</small>
                 </div>
               </div>
               <div class="approval-item">
@@ -343,6 +344,7 @@ onMounted(async () => {
                 <div v-if="stageApproval('chief')" class="approval-info">
                   <small>承認者: {{ stageApproval('chief').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('chief').confirmed_at) }}</small>
+                  <small v-if="stageApproval('chief').comment" class="comment">コメント: {{ stageApproval('chief').comment }}</small>
                 </div>
               </div>
               <div class="approval-item">
@@ -353,6 +355,7 @@ onMounted(async () => {
                 <div v-if="stageApproval('manager')" class="approval-info">
                   <small>承認者: {{ stageApproval('manager').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('manager').confirmed_at) }}</small>
+                  <small v-if="stageApproval('manager').comment" class="comment">コメント: {{ stageApproval('manager').comment }}</small>
                 </div>
               </div>
               <div class="approval-item">
@@ -363,17 +366,59 @@ onMounted(async () => {
                 <div v-if="stageApproval('committee')" class="approval-info">
                   <small>承認者: {{ stageApproval('committee').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('committee').confirmed_at) }}</small>
+                  <small v-if="stageApproval('committee').comment" class="comment">コメント: {{ stageApproval('committee').comment }}</small>
                 </div>
               </div>
             </div>
           </div>
 
-          <div v-if="selectedProposal.mindset_score" class="detail-section">
-            <h3>採点</h3>
-            <div class="scores">
-              <span>マインド: {{ selectedProposal.mindset_score }}</span>
-              <span>アイデア: {{ selectedProposal.idea_score }}</span>
-              <span>ヒント: {{ selectedProposal.hint_score }}</span>
+          <div v-if="selectedProposal.term || selectedProposal.quarter" class="detail-section">
+            <h3>期・四半期</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <label>期</label>
+                <span>{{ selectedProposal.term || '-' }}</span>
+              </div>
+              <div class="detail-item">
+                <label>四半期</label>
+                <span>{{ selectedProposal.quarter ? `第${selectedProposal.quarter}四半期` : '-' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedProposal.mindset_score || selectedProposal.idea_score || selectedProposal.hint_score" class="detail-section">
+            <h3>評価基準の結果</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <label>マインドセット</label>
+                <span>{{ selectedProposal.mindset_score || '-' }}点</span>
+              </div>
+              <div class="detail-item">
+                <label>アイデア工夫</label>
+                <span>{{ selectedProposal.idea_score || '-' }}点</span>
+              </div>
+              <div class="detail-item">
+                <label>みんなのヒント</label>
+                <span>{{ selectedProposal.hint_score || '-' }}点</span>
+              </div>
+              <div class="detail-item">
+                <label>合計ポイント</label>
+                <span class="total-points">{{ (selectedProposal.mindset_score || 0) + (selectedProposal.idea_score || 0) + (selectedProposal.hint_score || 0) }}点</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedProposal.proposal_classification || selectedProposal.committee_classification" class="detail-section">
+            <h3>提案判定</h3>
+            <div class="detail-grid">
+              <div v-if="selectedProposal.proposal_classification" class="detail-item">
+                <label>部課長判定</label>
+                <span class="classification-badge">{{ selectedProposal.proposal_classification }}</span>
+              </div>
+              <div v-if="selectedProposal.committee_classification" class="detail-item">
+                <label>改善委員判定</label>
+                <span class="classification-badge">{{ selectedProposal.committee_classification }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -587,23 +632,21 @@ onMounted(async () => {
   z-index: 10;
 }
 
-.btn-close {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: #ef4444;
-  color: white;
-  border-radius: 50%;
-  font-size: 1.4rem;
+.btn-back {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  transition: all 0.2s;
 }
 
-.btn-close:hover {
-  background: #dc2626;
+.btn-back:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
 }
 
 .detail-content {
@@ -751,6 +794,29 @@ onMounted(async () => {
 .approval-info small {
   font-size: 0.8rem;
   color: #6b7280;
+}
+
+.approval-info small.comment {
+  color: #374151;
+  font-weight: 500;
+  margin-top: 0.3rem;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.total-points {
+  font-weight: 700;
+  color: #3b82f6;
+  font-size: 1.1rem;
+}
+
+.classification-badge {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 6px;
+  font-weight: 600;
 }
 
 @media (max-width: 1024px) {
