@@ -59,10 +59,10 @@ const departmentChartData = computed(() => {
     labels: departmentSummary.value.map(d => d['部署']),
     datasets: [
       {
-        label: '年度累計件数',
+        label: '年間累計件数',
         backgroundColor: '#2563eb',
         borderRadius: 8,
-        data: departmentSummary.value.map(d => numberOrZero(d['年度合計'])),
+        data: departmentSummary.value.map(d => numberOrZero(d['年間合計'])),
       },
     ],
   }
@@ -71,7 +71,7 @@ const departmentChartData = computed(() => {
 const monthKeys = computed(() => {
   if (!departmentSummary.value.length) return []
   const sample = departmentSummary.value[0]
-  return Object.keys(sample).filter(key => key !== '部署' && key !== '年度合計')
+  return Object.keys(sample).filter(key => key !== '部署' && key !== '年間合計')
 })
 
 const monthlyChartData = computed(() => {
@@ -300,6 +300,7 @@ onMounted(() => {
                 <th>マインド</th>
                 <th>アイデア</th>
                 <th>ヒント</th>
+                <th>ポイント</th>
                 <th>削減時間 (h/年)</th>
                 <th>効果金額 (円)</th>
               </tr>
@@ -312,6 +313,7 @@ onMounted(() => {
                 <td>{{ row['平均マインド'] }}</td>
                 <td>{{ row['平均アイデア'] }}</td>
                 <td>{{ row['平均ヒント'] }}</td>
+                <td>{{ numberOrZero(row['合計ポイント']).toLocaleString() }}</td>
                 <td>{{ row['削減時間合計[Hr/月]'] }}</td>
                 <td>{{ numberOrZero(row['効果額合計[¥/月]']).toLocaleString() }}</td>
               </tr>
@@ -331,14 +333,14 @@ onMounted(() => {
               <tr>
                 <th>部門</th>
                 <th v-for="key in monthKeys" :key="key">{{ key }}</th>
-                <th>年度合計</th>
+                <th>年間合計</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(row, index) in departmentSummary" :key="index">
                 <td>{{ row['部署'] }}</td>
                 <td v-for="key in monthKeys" :key="key">{{ row[key] }}</td>
-                <td>{{ row['年度合計'] }}</td>
+                <td>{{ row['年間合計'] }}</td>
               </tr>
             </tbody>
           </table>

@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 from datetime import datetime
 from io import BytesIO
-from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN, InvalidOperation
 from collections import defaultdict
 from typing import Iterable, Any
 
@@ -160,12 +160,12 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
 def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
     columns = [
         "部署", "提案者", "件数", "平均マインド", "平均アイデア",
-        "平均ヒント", "削減時間合計[Hr/月]", "効果額合計[¥/月]"
+        "平均ヒント", "合計ポイント", "削減時間合計[Hr/月]", "効果額合計[¥/月]"
     ]
     if df.empty:
         return pd.DataFrame(columns=columns)
 
-    dept_col, person_col, count_col, mindset_col, idea_col, hint_col, reduction_col, effect_col = columns
+    dept_col, person_col, count_col, mindset_col, idea_col, hint_col, points_col, reduction_col, effect_col = columns
     summary: dict[tuple[str, str], dict[str, Decimal]] = {}
 
     for _, row in df.iterrows():
@@ -175,8 +175,8 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
         reduction_val = _to_decimal(row.get("削減時間")) or Decimal("0")
         effect_val = _to_decimal(row.get("効果額")) or Decimal("0")
         mindset = _to_decimal(row.get("マインドセット"))
-        idea = _to_decimal(row.get("アイデア"))
-        hint = _to_decimal(row.get("ヒント"))
+        idea = _to_decimal(row.get("アイデア工夫"))
+        hint = _to_decimal(row.get("みんなのヒント"))
 
         def ensure_entry(dept_name, person_name):
             key = (dept_name or "未設定", person_name or "未設定")
@@ -195,13 +195,12 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
             return summary[key]
 
         if contributors:
-            for contrib in contributors:
+            share_weights = _share_weights(contributors)
+            for contrib, share_ratio in zip(contributors, share_weights):
                 employee = getattr(contrib, "employee", None)
                 dept_name = getattr(getattr(employee, "department", None), "name", None) or dept_default
                 person_name = getattr(employee, "name", None) or person_default
                 entry = ensure_entry(dept_name, person_name)
-                share = _to_decimal(getattr(contrib, "share_percent", None)) or Decimal("0")
-                share_ratio = (share / Decimal("100")).quantize(Decimal("0.0001"))
                 entry["count"] += share_ratio
 
                 if mindset is not None:
@@ -239,14 +238,29 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
             return ""
         return float((sum_val / weight).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
+    def _decimal_or_zero(val: float | str):
+        if val == "" or val is None:
+            return Decimal("0")
+        return _to_decimal(val) or Decimal("0")
+
     for (dept_name, person_name), values in summary.items():
+        mindset_avg = avg(values["mindset_sum"], values["mindset_w"])
+        idea_avg = avg(values["idea_sum"], values["idea_w"])
+        hint_avg = avg(values["hint_sum"], values["hint_w"])
+
+        points_total: float | str = ""
+        if any(val != "" for val in (mindset_avg, idea_avg, hint_avg)):
+            total_points = _decimal_or_zero(mindset_avg) + _decimal_or_zero(idea_avg) + _decimal_or_zero(hint_avg)
+            points_total = float(total_points.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
         rows.append({
             dept_col: dept_name,
             person_col: person_name,
             count_col: float(values["count"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-            mindset_col: avg(values["mindset_sum"], values["mindset_w"]),
-            idea_col: avg(values["idea_sum"], values["idea_w"]),
-            hint_col: avg(values["hint_sum"], values["hint_w"]),
+            mindset_col: mindset_avg,
+            idea_col: idea_avg,
+            hint_col: hint_avg,
+            points_col: points_total,
             reduction_col: float(values["reduction"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             effect_col: int(values["effect"].quantize(Decimal("0"))),
         })
@@ -275,11 +289,10 @@ def build_department_month_matrix(df: pd.DataFrame, term_number: int) -> pd.Data
         dept_default = row.get("提案部門") or "未設定"
 
         if contributors:
-            for contrib in contributors:
+            share_weights = _share_weights(contributors)
+            for contrib, share_ratio in zip(contributors, share_weights):
                 employee = getattr(contrib, "employee", None)
                 dept_name = getattr(getattr(employee, "department", None), "name", None) or dept_default
-                share = _to_decimal(getattr(contrib, "share_percent", None)) or Decimal("0")
-                share_ratio = (share / Decimal("100")).quantize(Decimal("0.0001"))
                 dept_totals[dept_name][month] += share_ratio
         else:
             dept_totals[dept_default][month] += Decimal("1")
@@ -349,3 +362,34 @@ def _safe_int(value: Any) -> int | str:
         return int(float(value))
     except (TypeError, ValueError):
         return ""
+
+
+def _share_weights(contributors: list[Any]) -> list[Decimal]:
+    """
+    Calculate share ratios that always sum to 1.00 (rounded to 2 decimals).
+    Falls back to equal distribution when no share is provided.
+    """
+    if not contributors:
+        return []
+
+    shares: list[Decimal] = []
+    for contrib in contributors:
+        share = _to_decimal(getattr(contrib, "share_percent", None)) or Decimal("0")
+        shares.append(share if share > 0 else Decimal("0"))
+
+    total_share = sum(shares)
+    if total_share <= 0:
+        shares = [Decimal("100") / Decimal(len(contributors)) for _ in contributors]
+        total_share = sum(shares)
+
+    normalized = [share / total_share for share in shares]
+    hundredths = [value * Decimal("100") for value in normalized]
+    integer_parts = [val.to_integral_value(rounding=ROUND_DOWN) for val in hundredths]
+    fractions = [val - integer for val, integer in zip(hundredths, integer_parts)]
+
+    remaining = int(Decimal("100") - sum(integer_parts))
+    order = sorted(range(len(fractions)), key=lambda idx: fractions[idx], reverse=True)
+    for idx in order[:remaining]:
+        integer_parts[idx] += 1
+
+    return [Decimal(int_part) / Decimal("100") for int_part in integer_parts]
