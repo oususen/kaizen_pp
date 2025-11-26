@@ -24,6 +24,24 @@ const loading = ref(false)
 const message = ref('')
 const dialogOpen = ref(false)
 
+const contributorsOf = (proposal) => {
+  const list = proposal?.contributors || []
+  return list
+    .filter((c) => c.is_primary !== true)
+    .map((c, idx) => ({
+      key: `${c.employee?.id || c.employee || c.employee_code || idx}`,
+      name: c.employee?.name || c.employee_name || '未設定',
+      code: c.employee?.code || c.employee_code || '',
+      share: c.share_percent ?? '',
+      primary: Boolean(c.is_primary),
+    }))
+}
+
+const formatShare = (value) => {
+  const num = Number(value)
+  return Number.isFinite(num) ? num.toFixed(2) : ''
+}
+
 const form = reactive({
   status: 'approved',
   confirmed_name: '',
@@ -449,6 +467,18 @@ onMounted(() => {
               <div class="detail-item">
                 <label>部署</label>
                 <span>{{ selectedProposal.department_detail?.name }}</span>
+              </div>
+              <div class="detail-item span" v-if="contributorsOf(selectedProposal).length">
+                <label>共同提案者</label>
+                <ul class="contributors">
+                  <li v-for="c in contributorsOf(selectedProposal)" :key="c.key">
+                    <span class="contrib-name">{{ c.name }} <small v-if="c.code">({{ c.code }})</small></span>
+                    <span class="contrib-meta">
+                      <span v-if="c.primary" class="pill">主</span>
+                      <span v-if="c.share !== ''">{{ formatShare(c.share) }}%</span>
+                    </span>
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
@@ -937,6 +967,43 @@ onMounted(() => {
 
 .text-content {
   white-space: pre-wrap;
+}
+
+.contributors {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.contrib-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.contrib-name small {
+  color: #6b7280;
+}
+
+.contrib-meta {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-left: 0.6rem;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0f172a;
+  font-size: 0.8rem;
 }
 
 .detail-grid {

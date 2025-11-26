@@ -361,6 +361,9 @@ const submitProposal = async () => {
         contributors.push({ employee: contrib.employee.id, is_primary: false })
       }
     })
+    console.log('[SubmitForm] Contributors being sent:', contributors)
+    console.log('[SubmitForm] Primary contributor:', primaryContributor)
+    console.log('[SubmitForm] Co-contributors:', coContributors.value)
     // FormDataを使って複数画像を送信
     const formData = {
       department: form.department,

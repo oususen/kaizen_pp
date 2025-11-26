@@ -110,6 +110,14 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
     serializer_class = ImprovementProposalSerializer
     permission_classes = [AllowAny]
 
+    def create(self, request, *args, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[ViewSet.create] Request data keys: {request.data.keys()}")
+        logger.info(f"[ViewSet.create] Contributors raw: {request.data.get('contributors')}")
+        logger.info(f"[ViewSet.create] Contributors type: {type(request.data.get('contributors'))}")
+        return super().create(request, *args, **kwargs)
+
     def destroy(self, request, *args, **kwargs):
         """提案を削除（班長以上の権限が必要）"""
         user = request.user

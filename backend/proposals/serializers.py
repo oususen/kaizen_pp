@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
+import json
 from pathlib import Path
 import logging
 
@@ -363,6 +364,53 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             "classification_points",
         )
 
+    def to_internal_value(self, data):
+        logger.info("[to_internal_value] Starting...")
+        _data = data.copy()
+        contributors_raw = _data.get('contributors')
+        logger.info(f"[to_internal_value] Raw contributors data: {contributors_raw}")
+
+        # インスタンス変数に保存（createメソッドで使用）
+        self._raw_contributors = None
+
+        if contributors_raw and isinstance(contributors_raw, str):
+            logger.info("[to_internal_value] Contributors is a string, attempting to parse...")
+            try:
+                import json
+                contributors_list = json.loads(contributors_raw)
+                logger.info(f"[to_internal_value] Parsed contributors list: {contributors_list}")
+
+                if isinstance(contributors_list, list):
+                    employee_ids = [c.get("employee") for c in contributors_list if c.get("employee")]
+                    logger.info(f"[to_internal_value] Found employee IDs: {employee_ids}")
+                    employees_map = {emp.id: emp for emp in Employee.objects.filter(id__in=employee_ids)}
+                    logger.info(f"[to_internal_value] Fetched employees from DB: {list(employees_map.values())}")
+
+                    resolved_contributors = []
+                    for item in contributors_list:
+                        emp_id = item.get("employee")
+                        employee_obj = employees_map.get(emp_id)
+                        if employee_obj:
+                            new_item = item.copy()
+                            new_item['employee'] = employee_obj
+                            resolved_contributors.append(new_item)
+
+                    logger.info(f"[to_internal_value] Resolved contributors: {resolved_contributors}")
+                    # インスタンス変数に保存
+                    self._raw_contributors = resolved_contributors
+                    # contributorsフィールドを削除してDRFのバリデーションをスキップ
+                    _data.pop('contributors', None)
+                else:
+                    logger.warning("[to_internal_value] Parsed data is not a list.")
+
+            except (json.JSONDecodeError, AttributeError) as e:
+                logger.error(f"[to_internal_value] Error processing contributors: {e}", exc_info=True)
+                # Let default validation handle malformed JSON by not modifying it
+                pass
+
+        logger.info(f"[to_internal_value] Finished, _raw_contributors: {self._raw_contributors}")
+        return super().to_internal_value(_data)
+
     def validate(self, attrs):
         errors = {}
         current = self.instance or ImprovementProposal()
@@ -453,6 +501,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         return None
 
     def _prepare_contributors(self, contributors_data, primary_employee):
+        logger.info(f"[_prepare_contributors] Starting with contributors_data: {contributors_data}, primary_employee: {primary_employee}")
         normalized = []
         seen = set()
 
@@ -464,12 +513,22 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
                 employee = item.get("employee") if isinstance(item, dict) else None
                 is_primary = bool(item.get("is_primary")) if isinstance(item, dict) else False
 
-            if not employee or employee.id in seen:
+            logger.info(f"[_prepare_contributors] Processing item: {item}, employee={employee}, is_primary={is_primary}")
+            if not employee:
+                logger.info(f"[_prepare_contributors] Skipping item (no employee)")
                 continue
-            seen.add(employee.id)
+
+            # employee_idを取得（EmployeeオブジェクトまたはID）
+            employee_id = employee.id if hasattr(employee, 'id') else employee
+            if employee_id in seen:
+                logger.info(f"[_prepare_contributors] Skipping item (already seen: {employee_id})")
+                continue
+
+            seen.add(employee_id)
             normalized.append({"employee": employee, "is_primary": is_primary})
 
         if primary_employee and getattr(primary_employee, "id", None) not in seen:
+            logger.info(f"[_prepare_contributors] Adding primary_employee to normalized list")
             normalized.insert(0, {"employee": primary_employee, "is_primary": True})
             seen.add(primary_employee.id)
 
@@ -485,17 +544,31 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         shares = self._assign_equal_shares(len(normalized))
         for item, share in zip(normalized, shares):
             item["share_percent"] = share
+        logger.info(f"[_prepare_contributors] Returning {len(normalized)} normalized contributors")
         return normalized
 
+    def _resolve_employee(self, employee_pk):
+        """Find an employee by primary key."""
+        try:
+            return Employee.objects.get(pk=employee_pk)
+        except Employee.DoesNotExist:
+            return None
+
     def _sync_contributors(self, proposal: ImprovementProposal, contributors_data):
+        logger.info(f"[_sync_contributors] Starting for proposal {proposal.id}, data: {contributors_data}")
         ProposalContributor.objects.filter(proposal=proposal).delete()
         if not contributors_data:
+            logger.warning(f"[_sync_contributors] No contributors_data provided, returning early")
             return
 
         objects = []
         for item in contributors_data:
             employee = item.get("employee")
             share = item.get("share_percent") or Decimal("0")
+            logger.info(f"[_sync_contributors] Processing item: employee={employee}, is_primary={item.get('is_primary')}, share={share}")
+            if employee and not isinstance(employee, Employee):
+                employee = self._resolve_employee(employee)
+            logger.info(f"[_sync_contributors] Resolved employee: {employee}")
             objects.append(
                 ProposalContributor(
                     proposal=proposal,
@@ -506,14 +579,39 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
                     share_percent=share,
                 )
             )
+        logger.info(f"[_sync_contributors] Created {len(objects)} ProposalContributor objects, calling bulk_create...")
         ProposalContributor.objects.bulk_create(objects)
+        logger.info(f"[_sync_contributors] bulk_create completed")
+
+    def _load_contributors(self, raw):
+        """Parse contributors from JSON string or pass-through list."""
+        logger.info(f"[_load_contributors] raw data type: {type(raw)}, value: {raw}")
+        if raw is None:
+            logger.info(f"[_load_contributors] raw is None, returning None")
+            return None
+        if isinstance(raw, (list, tuple)):
+            logger.info(f"[_load_contributors] raw is list/tuple, returning as list: {list(raw)}")
+            return list(raw)
+        if isinstance(raw, str):
+            logger.info(f"[_load_contributors] raw is string, attempting JSON parse")
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    logger.info(f"[_load_contributors] Parsed JSON list: {parsed}")
+                    return parsed
+            except json.JSONDecodeError as e:
+                logger.error(f"[_load_contributors] JSON decode error: {e}")
+                raise serializers.ValidationError({"contributors": "Invalid contributors format"})
+        logger.warning(f"[_load_contributors] Unexpected data type, returning None")
+        return None
 
     def create(self, validated_data):
         from django.core.mail import send_mail
 
         before_image = validated_data.pop("before_image", None)
         after_image = validated_data.pop("after_image", None)
-        contributors_payload = validated_data.pop("contributors", None)
+        contributors_payload = getattr(self, '_raw_contributors', None)
+        logger.info(f"[create] contributors_payload from _raw_contributors: {contributors_payload}")
         request = self.context.get("request")
         if request and request.user.is_authenticated:
             validated_data.setdefault("created_by", request.user)
@@ -526,7 +624,9 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         if reduction_hours is not None and not validated_data.get("effect_amount"):
             validated_data["effect_amount"] = Decimal("1700") * reduction_hours
         primary_employee = validated_data.get("proposer") or self._first_employee_from_contributors(contributors_payload)
+        logger.info(f"[create] primary_employee: {primary_employee}")
         normalized_contributors = self._prepare_contributors(contributors_payload, primary_employee)
+        logger.info(f"[create] normalized_contributors: {len(normalized_contributors) if normalized_contributors else 0} items")
         primary_employee = next((c["employee"] for c in normalized_contributors if c.get("is_primary")), primary_employee)
         if primary_employee:
             validated_data["proposer"] = primary_employee
@@ -553,7 +653,11 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
 
         if updated_fields:
             proposal.save(update_fields=updated_fields)
+        logger.info(f"[create] Calling _sync_contributors with {len(normalized_contributors)} contributors")
         self._sync_contributors(proposal, normalized_contributors)
+        logger.info(f"[create] After _sync_contributors, checking DB...")
+        saved_count = ProposalContributor.objects.filter(proposal=proposal).count()
+        logger.info(f"[create] Saved contributors count in DB: {saved_count}")
         for stage, _ in ProposalApproval.Stage.choices:
             ProposalApproval.objects.get_or_create(proposal=proposal, stage=stage)
 
@@ -565,7 +669,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         before_image = validated_data.pop("before_image", None)
         after_image = validated_data.pop("after_image", None)
-        contributors_payload = validated_data.pop("contributors", None)
+        contributors_payload = self._load_contributors(validated_data.pop("contributors", None))
         reduction_hours = validated_data.get("reduction_hours")
         if reduction_hours is not None and not validated_data.get("effect_amount"):
             validated_data["effect_amount"] = Decimal("1700") * reduction_hours

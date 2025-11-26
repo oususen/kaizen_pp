@@ -142,16 +142,12 @@ export const createProposal = (payload) => {
       return
     }
     if (key === 'contributors') {
-      if (Array.isArray(value)) {
-        value.forEach((item, index) => {
-          if (!item) return
-          if (item.employee) {
-            formData.append(`contributors[${index}][employee]`, item.employee)
-          }
-          if (item.is_primary !== undefined) {
-            formData.append(`contributors[${index}][is_primary]`, item.is_primary)
-          }
-        })
+      if (value !== undefined) {
+        const contributorsJson = JSON.stringify(value)
+        console.log('[client.js] Appending contributors to FormData:', contributorsJson)
+        formData.append('contributors', contributorsJson)
+      } else {
+        console.log('[client.js] Contributors is undefined, not appending to FormData')
       }
       return
     }
