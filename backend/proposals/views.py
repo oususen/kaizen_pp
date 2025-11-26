@@ -288,7 +288,8 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Invalid stage"}, status=status.HTTP_400_BAD_REQUEST)
 
         approval.status = status_val
-        approval.comment = data.get("comment", "")
+        if "comment" in data:
+            approval.comment = data.get("comment") or ""
         approval.confirmed_name = data["confirmed_name"]
         approval.confirmed_at = timezone.now()
         
@@ -457,7 +458,8 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
                             next_role
                         )
 
-        refreshed = self.get_serializer(proposal)
+        refreshed_instance = self.get_queryset().filter(pk=proposal.pk).first() or proposal
+        refreshed = self.get_serializer(refreshed_instance)
         return Response(refreshed.data)
 
     @action(detail=False, methods=["get"], url_path="export")

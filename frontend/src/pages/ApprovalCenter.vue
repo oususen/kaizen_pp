@@ -547,7 +547,7 @@ onMounted(() => {
                 <div v-if="stageApproval('supervisor')" class="approval-info">
                   <small>承認者: {{ stageApproval('supervisor').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('supervisor').confirmed_at) }}</small>
-                  <small v-if="stageApproval('supervisor').comment" class="comment">コメント: {{ stageApproval('supervisor').comment }}</small>
+                  <small class="comment">コメント: {{ stageApproval('supervisor').comment || 'コメント未入力' }}</small>
                 </div>
               </div>
               <div class="approval-item">
@@ -558,7 +558,7 @@ onMounted(() => {
                 <div v-if="stageApproval('chief')" class="approval-info">
                   <small>承認者: {{ stageApproval('chief').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('chief').confirmed_at) }}</small>
-                  <small v-if="stageApproval('chief').comment" class="comment">コメント: {{ stageApproval('chief').comment }}</small>
+                  <small class="comment">コメント: {{ stageApproval('chief').comment || 'コメント未入力' }}</small>
                 </div>
               </div>
               <div class="approval-item">
@@ -569,7 +569,7 @@ onMounted(() => {
                 <div v-if="stageApproval('manager')" class="approval-info">
                   <small>承認者: {{ stageApproval('manager').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('manager').confirmed_at) }}</small>
-                  <small v-if="stageApproval('manager').comment" class="comment">コメント: {{ stageApproval('manager').comment }}</small>
+                  <small class="comment">コメント: {{ stageApproval('manager').comment || 'コメント未入力' }}</small>
                 </div>
               </div>
               <div class="approval-item">
@@ -580,7 +580,7 @@ onMounted(() => {
                 <div v-if="stageApproval('committee')" class="approval-info">
                   <small>承認者: {{ stageApproval('committee').confirmed_name || '-' }}</small>
                   <small>日時: {{ formatDate(stageApproval('committee').confirmed_at) }}</small>
-                  <small v-if="stageApproval('committee').comment" class="comment">コメント: {{ stageApproval('committee').comment }}</small>
+                  <small class="comment">コメント: {{ stageApproval('committee').comment || 'コメント未入力' }}</small>
                 </div>
               </div>
             </div>
