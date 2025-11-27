@@ -550,12 +550,22 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
     def analytics(self, request):
         term_value = request.query_params.get("term")
         department_filter = request.query_params.get("department")
+        month_value = request.query_params.get("month")
         if term_value is None:
             return Response({"detail": "term parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
         try:
             term_number = int(term_value)
         except ValueError:
             return Response({"detail": "term must be integer"}, status=status.HTTP_400_BAD_REQUEST)
+
+        month_number = None
+        if month_value not in (None, "", "null"):
+            try:
+                month_number = int(month_value)
+            except ValueError:
+                return Response({"detail": "month must be integer"}, status=status.HTTP_400_BAD_REQUEST)
+            if month_number < 1 or month_number > 12:
+                return Response({"detail": "month must be between 1 and 12"}, status=status.HTTP_400_BAD_REQUEST)
             
         start_date, end_date = fiscal.term_date_range(term_number)
         start_dt = datetime.combine(start_date, time.min)
@@ -572,6 +582,8 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         )
         if department_filter:
             proposals = proposals.filter(department__name=department_filter)
+        if month_number:
+            proposals = proposals.filter(submitted_at__month=month_number)
 
         from .services.reports import get_analytics_summary
         data = get_analytics_summary(proposals, term_number)

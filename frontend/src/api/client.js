@@ -197,6 +197,9 @@ export const fetchAnalytics = async (params) => {
     if (!params?.term) throw new Error('term is required')
     query.append('term', params.term)
     if (params.department) query.append('department', params.department)
+    if (params.month !== undefined && params.month !== null && params.month !== '') {
+      query.append('month', params.month)
+    }
   }
   return request(`/improvement-proposals/analytics/?${query.toString()}`)
 }

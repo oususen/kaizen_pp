@@ -6,6 +6,7 @@ import LineChart from '../components/LineChart.vue'
 
 const term = ref('')
 const department = ref('')
+const month = ref('')
 const departments = ref([])
 const message = ref('')
 const messageType = ref('info')
@@ -13,6 +14,7 @@ const downloading = ref(false)
 const loadingAnalytics = ref(false)
 const analytics = ref(null)
 const lastTermKey = 'kaizen:reports:last-term'
+const fiscalMonths = [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 const numberOrZero = (value) => {
   const num = Number(value)
@@ -76,11 +78,24 @@ const monthKeys = computed(() => {
   return Object.keys(sample).filter(key => key !== '部署' && key !== '年間合計')
 })
 
+const monthNumberFromKey = (key) => {
+  const match = String(key).match(/(\d{1,2})/)
+  return match ? Number(match[1]) : null
+}
+
+const visibleMonthKeys = computed(() => {
+  if (!month.value) return monthKeys.value
+  const selected = Number(month.value)
+  if (!Number.isFinite(selected)) return monthKeys.value
+  return monthKeys.value.filter((key) => monthNumberFromKey(key) === selected)
+})
+
 const monthlyChartData = computed(() => {
   if (!departmentSummary.value.length) return null
-  const totals = monthKeys.value.map(month => ({
-    month,
-    total: departmentSummary.value.reduce((acc, dept) => acc + numberOrZero(dept[month]), 0),
+  if (!visibleMonthKeys.value.length) return null
+  const totals = visibleMonthKeys.value.map(monthKey => ({
+    month: monthKey,
+    total: departmentSummary.value.reduce((acc, dept) => acc + numberOrZero(dept[monthKey]), 0),
   }))
   return {
     labels: totals.map(t => t.month),
@@ -97,6 +112,8 @@ const monthlyChartData = computed(() => {
     ],
   }
 })
+
+
 
 const chartOptions = {
   responsive: true,
@@ -143,7 +160,11 @@ const loadAnalytics = async () => {
   analytics.value = null
   message.value = ''
   try {
-    const data = await fetchAnalytics({ term: term.value, department: department.value || undefined })
+    const data = await fetchAnalytics({
+      term: term.value,
+      department: department.value || undefined,
+      month: month.value || undefined,
+    })
     analytics.value = data
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(lastTermKey, String(term.value))
@@ -208,6 +229,13 @@ onMounted(() => {
             <select v-model="department">
               <option value="">すべて</option>
               <option v-for="dept in departments" :key="dept" :value="dept">{{ dept }}</option>
+            </select>
+          </label>
+                    <label class="term-input">
+            <span>月フィルタ (任意)</span>
+            <select v-model.number="month">
+              <option value="">すべて</option>
+              <option v-for="m in fiscalMonths" :key="m" :value="m">{{ m }}月</option>
             </select>
           </label>
           <div class="hero__actions">
@@ -356,14 +384,14 @@ onMounted(() => {
             <thead>
               <tr>
                 <th>部門</th>
-                <th v-for="key in monthKeys" :key="key">{{ key }}</th>
+                <th v-for="key in visibleMonthKeys" :key="key">{{ key }}</th>
                 <th>年間合計</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(row, index) in departmentSummary" :key="index">
                 <td>{{ row['部署'] }}</td>
-                <td v-for="key in monthKeys" :key="key">{{ row[key] }}</td>
+                <td v-for="key in visibleMonthKeys" :key="key">{{ row[key] }}</td>
                 <td>{{ row['年間合計'] }}</td>
               </tr>
             </tbody>
