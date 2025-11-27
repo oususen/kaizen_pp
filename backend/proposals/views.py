@@ -15,7 +15,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from django.contrib.auth import get_user_model
-from .models import Department, Employee, UserPermission, ImprovementProposal, ProposalApproval, UserProfile
+from .models import (
+    Department,
+    Employee,
+    UserPermission,
+    ImprovementProposal,
+    ProposalApproval,
+    ProposalContributor,
+    UserProfile,
+)
 from .serializers import (
     ApprovalActionSerializer,
     DepartmentSerializer,
@@ -90,6 +98,33 @@ def calculate_classification_points(classification: str | None) -> int | None:
         ImprovementProposal.ProposalClassification.EXCELLENT: 8,
     }
     return mapping.get(classification)
+
+
+def _distribute_classification_points(proposal: ImprovementProposal) -> None:
+    """均等割りで提案ポイントをProposalContributorに保存する。"""
+    from decimal import Decimal, ROUND_HALF_UP
+
+    points = proposal.classification_points
+    if points is None:
+        return
+    contributors = list(proposal.contributors.all())
+    if not contributors:
+        return
+
+    total = Decimal(points)
+    n = len(contributors)
+    if n == 0:
+        return
+
+    base = (total / Decimal(n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    # adjust remainder so sum matches
+    remainder = (total - (base * n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    for idx, contrib in enumerate(contributors):
+        share = base
+        if remainder and idx == 0:
+            share = (base + remainder).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        contrib.classification_points_share = share
+    ProposalContributor.objects.bulk_update(contributors, ["classification_points_share"])
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -326,6 +361,9 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
                 proposal.idea_score = scores.get("idea")
                 proposal.hint_score = scores.get("hint")
                 updated_fields.extend(["mindset_score", "idea_score", "hint_score"])
+            # 提案ポイントを共同提案者に均等配分
+            if proposal.classification_points is not None:
+                _distribute_classification_points(proposal)
             if updated_fields:
                 proposal.save(update_fields=updated_fields)
 

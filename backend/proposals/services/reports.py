@@ -199,7 +199,6 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
         if contributors:
             share_weights = _share_weights(contributors)
             contributor_count = len(contributors) or 1
-            proposal_points_share = (proposal_points_total / Decimal(contributor_count)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             for contrib, share_ratio in zip(contributors, share_weights):
                 employee = getattr(contrib, "employee", None)
                 dept_name = getattr(getattr(employee, "department", None), "name", None) or dept_default
@@ -220,7 +219,10 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
                 if getattr(contrib, "is_primary", False):
                     entry["reduction"] += reduction_val
                     entry["effect"] += effect_val
-                entry["proposal_points"] += proposal_points_share
+                points_share_val = _to_decimal(getattr(contrib, "classification_points_share", None))
+                if points_share_val is None:
+                    points_share_val = (proposal_points_total / Decimal(contributor_count)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                entry["proposal_points"] += points_share_val
         else:
             entry = ensure_entry(dept_default, person_default)
             entry["count"] += Decimal("1")

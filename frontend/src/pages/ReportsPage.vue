@@ -300,7 +300,8 @@ onMounted(() => {
                 <th>マインド</th>
                 <th>アイデア</th>
                 <th>ヒント</th>
-                <th>ポイント</th>
+                <th>評価ポイント</th>
+                <th>提案ポイント</th>
                 <th>削減時間 (h/年)</th>
                 <th>効果金額 (円)</th>
               </tr>
@@ -314,6 +315,7 @@ onMounted(() => {
                 <td>{{ row['平均アイデア'] }}</td>
                 <td>{{ row['平均ヒント'] }}</td>
                 <td>{{ numberOrZero(row['合計ポイント']).toLocaleString() }}</td>
+                <td>{{ numberOrZero(row['提案ポイント']).toLocaleString() }}</td>
                 <td>{{ row['削減時間合計[Hr/月]'] }}</td>
                 <td>{{ numberOrZero(row['効果額合計[¥/月]']).toLocaleString() }}</td>
               </tr>

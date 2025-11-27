@@ -60,9 +60,17 @@ const stageApproval = (stage) => {
 
 const proposalPointShare = computed(() => {
   const proposal = selectedProposal.value
+  const contributors = proposal?.contributors || []
+  const shares = contributors
+    .map((c) => Number(c.classification_points_share))
+    .filter((v) => Number.isFinite(v) && v > 0)
+  if (shares.length) {
+    const total = shares.reduce((a, b) => a + b, 0)
+    return { share: shares[0], total }
+  }
   const total = Number(proposal?.classification_points)
   if (!Number.isFinite(total)) return { share: null, total: null }
-  const contributorCount = Math.max(proposal?.contributors?.length || 1, 1)
+  const contributorCount = Math.max(contributors.length || 1, 1)
   return { share: total / contributorCount, total }
 })
 

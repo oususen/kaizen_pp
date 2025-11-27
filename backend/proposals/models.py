@@ -293,6 +293,13 @@ class ProposalContributor(models.Model):
     employee_name = models.CharField(max_length=128, blank=True)
     is_primary = models.BooleanField(default=False)
     share_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    classification_points_share = models.DecimalField(
+        "提案ポイント按分",
+        max_digits=8,
+        decimal_places=2,
+        default=0,
+        help_text="提案ポイントを共同提案者で均等割りした値",
+    )
 
     class Meta:
         unique_together = ("proposal", "employee")

@@ -231,9 +231,18 @@ class ProposalContributorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProposalContributor
-        fields = ["id", "employee", "employee_name", "employee_code", "is_primary", "share_percent"]
+        fields = [
+            "id",
+            "employee",
+            "employee_name",
+            "employee_code",
+            "is_primary",
+            "share_percent",
+            "classification_points_share",
+        ]
         extra_kwargs = {
             "share_percent": {"read_only": True},
+            "classification_points_share": {"read_only": True},
         }
 
 
