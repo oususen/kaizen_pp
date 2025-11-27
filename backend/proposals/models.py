@@ -358,6 +358,8 @@ class ProposalApproval(models.Model):
     mindset_score = models.PositiveSmallIntegerField(null=True, blank=True)
     idea_score = models.PositiveSmallIntegerField(null=True, blank=True)
     hint_score = models.PositiveSmallIntegerField(null=True, blank=True)
+    sdgs_flag = models.BooleanField("SDGs", default=False)
+    safety_flag = models.BooleanField("安全", default=False)
 
     class Meta:
         unique_together = ("proposal", "stage")

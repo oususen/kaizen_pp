@@ -444,6 +444,14 @@ onMounted(loadProposals)
                 </span>
                 <span v-else>-</span>
               </div>
+              <div class="detail-item">
+                <label>SDGs</label>
+                <span>{{ stageApproval('manager')?.sdgs_flag ? '適用' : '未適用' }}</span>
+              </div>
+              <div class="detail-item">
+                <label>安全</label>
+                <span>{{ stageApproval('manager')?.safety_flag ? '適用' : '未適用' }}</span>
+              </div>
             </div>
           </div>
 

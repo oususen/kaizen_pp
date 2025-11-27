@@ -327,6 +327,9 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             approval.comment = data.get("comment") or ""
         approval.confirmed_name = data["confirmed_name"]
         approval.confirmed_at = timezone.now()
+        if stage == ProposalApproval.Stage.MANAGER:
+            approval.sdgs_flag = bool(data.get("sdgs_flag"))
+            approval.safety_flag = bool(data.get("safety_flag"))
         
         # ログインユーザーのUserProfileまたはEmployee Profileを取得
         user = request.user

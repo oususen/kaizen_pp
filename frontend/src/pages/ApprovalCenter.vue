@@ -49,6 +49,8 @@ const form = reactive({
   mindset: 3,
   idea: 3,
   hint: 3,
+  sdgs_flag: false,
+  safety_flag: false,
   term: '',
   quarter: '',
   proposal_classification: '',
@@ -275,6 +277,9 @@ const openApprovalDialog = () => {
   form.mindset = selectedProposal.value?.mindset_score ?? 3
   form.idea = selectedProposal.value?.idea_score ?? 3
   form.hint = selectedProposal.value?.hint_score ?? 3
+  const managerApproval = stageApproval('manager') || {}
+  form.sdgs_flag = Boolean(managerApproval.sdgs_flag)
+  form.safety_flag = Boolean(managerApproval.safety_flag)
   form.term = selectedProposal.value?.term ?? ''
   form.quarter = selectedProposal.value?.quarter ?? ''
   classificationTouched.value = false
@@ -335,6 +340,8 @@ const submitApproval = async () => {
   }
   if (isManagerStage.value) {
     payload.proposal_classification = form.proposal_classification
+    payload.sdgs_flag = form.sdgs_flag
+    payload.safety_flag = form.safety_flag
   }
   if (isCommitteeStage.value) {
     payload.term = Number(form.term)
@@ -627,6 +634,14 @@ onMounted(() => {
                 </span>
                 <span v-else>-</span>
               </div>
+              <div class="detail-item">
+                <label>SDGs</label>
+                <span>{{ stageApproval('manager')?.sdgs_flag ? '適用' : '未適用' }}</span>
+              </div>
+              <div class="detail-item">
+                <label>安全</label>
+                <span>{{ stageApproval('manager')?.safety_flag ? '適用' : '未適用' }}</span>
+              </div>
             </div>
           </div>
 
@@ -719,6 +734,16 @@ onMounted(() => {
               ポイント（自動計算）
               <input :value="classificationPoints" type="number" readonly disabled placeholder="-" />
             </label>
+            <div class="checkbox-row">
+              <label class="checkbox">
+                <input v-model="form.sdgs_flag" type="checkbox" />
+                <span>SDGs</span>
+              </label>
+              <label class="checkbox">
+                <input v-model="form.safety_flag" type="checkbox" />
+                <span>安全</span>
+              </label>
+            </div>
           </div>
 
           <div v-if="isCommitteeStage" class="term-quarter-grid">

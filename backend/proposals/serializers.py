@@ -269,6 +269,8 @@ class ProposalApprovalSerializer(serializers.ModelSerializer):
             "mindset_score",
             "idea_score",
             "hint_score",
+            "sdgs_flag",
+            "safety_flag",
         ]
         read_only_fields = ("confirmed_at", "confirmed_by")
 
@@ -948,6 +950,8 @@ class ApprovalActionSerializer(serializers.Serializer):
     term = serializers.IntegerField(required=False, allow_null=True)
     quarter = serializers.IntegerField(required=False, allow_null=True)
     scores = serializers.DictField(child=serializers.IntegerField(min_value=1, max_value=5), required=False)
+    sdgs_flag = serializers.BooleanField(required=False)
+    safety_flag = serializers.BooleanField(required=False)
 
     def validate(self, attrs):
         stage = attrs.get('stage')
@@ -957,6 +961,8 @@ class ApprovalActionSerializer(serializers.Serializer):
         status_value = attrs.get('status')
         proposal_classification = attrs.get("proposal_classification")
         committee_classification = attrs.get("committee_classification")
+        sdgs_flag = attrs.get("sdgs_flag")
+        safety_flag = attrs.get("safety_flag")
 
         if quarter is not None and quarter not in {1, 2, 3, 4}:
             raise serializers.ValidationError('quarter must be between 1 and 4')
@@ -977,4 +983,7 @@ class ApprovalActionSerializer(serializers.Serializer):
             for key in ('mindset', 'idea', 'hint'):
                 if key not in scores:
                     raise serializers.ValidationError(f"missing score: {key}")
+        if stage == ProposalApproval.Stage.MANAGER and status_value == ProposalApproval.Status.APPROVED:
+            if sdgs_flag is None or safety_flag is None:
+                raise serializers.ValidationError('sdgs_flag and safety_flag are required at manager approval')
         return attrs
