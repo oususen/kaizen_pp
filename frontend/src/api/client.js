@@ -283,4 +283,21 @@ export const deleteUser = (id) =>
     method: 'DELETE',
   })
 
+export const createEmployee = (payload) =>
+  request('/employees/', {
+    method: 'POST',
+    body: payload,
+  })
+
+export const updateEmployee = (id, payload) =>
+  request(`/employees/${id}/`, {
+    method: 'PATCH',
+    body: payload,
+  })
+
+export const deleteEmployee = (id) =>
+  request(`/employees/${id}/`, {
+    method: 'DELETE',
+  })
+
 

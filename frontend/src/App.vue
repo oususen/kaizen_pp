@@ -11,6 +11,7 @@ const navItems = [
   { to: '/reports', label: 'レポート', resource: 'reports' },
   { to: '/permissions', label: '権限設定', resource: 'permissions' },
   { to: '/users', label: 'ユーザー管理', resource: 'user_management' },
+  { to: '/employees', label: '従業員管理', resource: 'employee_management' },
   { to: '/profile', label: 'プロフィール', resource: 'profile' },
 ]
 

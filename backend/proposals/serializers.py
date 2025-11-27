@@ -204,6 +204,8 @@ class UserPermissionSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     department_detail = DepartmentSerializer(source="department", read_only=True)
     permissions = UserPermissionSerializer(many=True, read_only=True)
+    employment_type_display = serializers.CharField(source="get_employment_type_display", read_only=True)
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
 
     class Meta:
         model = Employee
@@ -214,10 +216,14 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "email",
             "position",
             "role",
+            "role_display",
+            "employment_type",
+            "employment_type_display",
             "is_active",
             "division",
             "group",
             "team",
+            "joined_on",
             "department",
             "department_detail",
             "permissions",

@@ -590,7 +590,7 @@ class CurrentEmployeeView(APIView):
         return Response(employee_data)
 
 
-class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
+class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.select_related("department")
     serializer_class = EmployeeSerializer
     permission_classes = [AllowAny]
@@ -601,6 +601,7 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
         department_id = self.request.query_params.get("department")
         code = self.request.query_params.get("code")
         keyword = self.request.query_params.get("q")
+        include_inactive = self.request.query_params.get("include_inactive")
 
         if code:
             queryset = queryset.filter(code__iexact=code)
@@ -633,7 +634,9 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
             except Department.DoesNotExist:
                 queryset = queryset.none()
 
-        return queryset.filter(is_active=True)
+        if not include_inactive:
+            return queryset.filter(is_active=True)
+        return queryset
 
     def _get_descendant_ids(self, department):
         """Get all descendant department IDs including the department itself."""

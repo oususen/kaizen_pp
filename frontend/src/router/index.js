@@ -6,6 +6,7 @@ import ConfirmedList from '../pages/ConfirmedList.vue'
 import ReportsPage from '../pages/ReportsPage.vue'
 import PermissionSettings from '../pages/PermissionSettings.vue'
 import UserManagement from '../pages/UserManagement.vue'
+import EmployeeManagement from '../pages/EmployeeManagement.vue'
 import ProfilePage from '../pages/ProfilePage.vue'
 import LoginPage from '../pages/LoginPage.vue'
 import { useAuth } from '../stores/auth'
@@ -20,6 +21,7 @@ const routes = [
   { path: '/reports', component: ReportsPage, meta: { title: 'レポート' } },
   { path: '/permissions', component: PermissionSettings, meta: { title: '権限設定' } },
   { path: '/users', component: UserManagement, meta: { title: 'ユーザー管理' } },
+  { path: '/employees', component: EmployeeManagement, meta: { title: '従業員管理' } },
   { path: '/profile', component: ProfilePage, meta: { title: 'プロフィール' } },
 ]
 
@@ -53,6 +55,7 @@ router.beforeEach(async (to, from, next) => {
     '/reports': 'reports',
     '/permissions': 'permissions',
     '/users': 'user_management',
+    '/employees': 'employee_management',
     '/profile': 'profile',
   }
 

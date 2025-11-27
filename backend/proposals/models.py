@@ -135,6 +135,14 @@ class Employee(models.Model):
         COMMITTEE = "committee", "改善委員"
         ADMIN = "admin", "システム管理者"
 
+    class EmploymentType(models.TextChoices):
+        REGULAR = "regular", "社員"
+        INTERN = "intern", "実習生"
+        TEMPORARY = "temporary", "人材派遣"
+        SKILLED = "skilled", "特定技能"
+        CONTRACT = "contract", "嘱託"
+        PART_TIME = "part_time", "パート"
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -153,6 +161,12 @@ class Employee(models.Model):
     team = models.CharField("班", max_length=100, blank=True)
     position = models.CharField(max_length=100, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STAFF)
+    employment_type = models.CharField(
+        "雇用形態",
+        max_length=20,
+        choices=EmploymentType.choices,
+        default=EmploymentType.REGULAR,
+    )
     is_active = models.BooleanField(default=True)
     joined_on = models.DateField(null=True, blank=True)
 
