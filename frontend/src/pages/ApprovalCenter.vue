@@ -144,6 +144,22 @@ const visibleStages = computed(() => {
   return allowed.length ? stages.filter((s) => allowed.includes(s.value)) : []
 })
 
+const preferredStageForRole = () => {
+  const role = auth.state.employee?.profile?.role || auth.state.employee?.role
+  const preferredByRole = {
+    supervisor: 'supervisor',
+    chief: 'chief',
+    manager: 'manager',
+    committee: 'committee',
+    committee_chair: 'committee',
+  }
+  const preferred = preferredByRole[role]
+  if (preferred && allowedStages.value.includes(preferred)) {
+    return preferred
+  }
+  return visibleStages.value[0]?.value ?? null
+}
+
 const isCommitteeStage = computed(() => selectedStage.value === 'committee')
 const isManagerStage = computed(() => selectedStage.value === 'manager')
 
@@ -170,9 +186,9 @@ const ensureStage = () => {
     return false
   }
   if (!selectedStage.value || !allowedStages.value.includes(selectedStage.value)) {
-    selectedStage.value = visibleStages.value[0].value
+    selectedStage.value = preferredStageForRole()
   }
-  return true
+  return !!selectedStage.value
 }
 
 // ログインユーザーの役割と所属に応じてフィルタリング
