@@ -47,7 +47,7 @@ const departmentLeaders = computed(() => {
   return departmentSummary.value
     .map(row => ({
       department: row['部署'] || '未設定',
-      total: numberOrZero(row['年度合計']),
+      total: numberOrZero(row['年間合計']),
     }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 5)
