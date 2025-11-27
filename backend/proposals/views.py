@@ -156,6 +156,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class ImprovementProposalViewSet(viewsets.ModelViewSet):
     serializer_class = ImprovementProposalSerializer
     permission_classes = [AllowAny]
+    pagination_class = None
 
     def create(self, request, *args, **kwargs):
         import logging
@@ -548,6 +549,7 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="analytics")
     def analytics(self, request):
         term_value = request.query_params.get("term")
+        department_filter = request.query_params.get("department")
         if term_value is None:
             return Response({"detail": "term parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
         try:
@@ -568,6 +570,8 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             .select_related("department", "section", "group", "team", "proposer")
             .prefetch_related("approvals__confirmed_by", "contributors__employee")
         )
+        if department_filter:
+            proposals = proposals.filter(department__name=department_filter)
 
         from .services.reports import get_analytics_summary
         data = get_analytics_summary(proposals, term_number)

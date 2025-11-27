@@ -111,7 +111,7 @@ export const updateMyProfile = async (payload) => {
 
 export const fetchProposals = async (params = {}) => {
   const search = new URLSearchParams()
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries({ page_size: 200, ...params }).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       search.append(key, value)
     }
@@ -189,8 +189,16 @@ export const exportTermReport = async (term) => {
   return response.blob()
 }
 
-export const fetchAnalytics = async (term) => {
-  return request(`/improvement-proposals/analytics/?term=${term}`)
+export const fetchAnalytics = async (params) => {
+  const query = new URLSearchParams()
+  if (typeof params === 'number' || typeof params === 'string') {
+    query.append('term', params)
+  } else {
+    if (!params?.term) throw new Error('term is required')
+    query.append('term', params.term)
+    if (params.department) query.append('department', params.department)
+  }
+  return request(`/improvement-proposals/analytics/?${query.toString()}`)
 }
 
 export const fetchConfirmed = () => fetchProposals({ status: 'completed' })

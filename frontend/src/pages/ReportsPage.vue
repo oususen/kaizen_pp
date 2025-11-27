@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { exportTermReport, fetchAnalytics } from '../api/client'
+import { exportTermReport, fetchAnalytics, fetchDepartments } from '../api/client'
 import BarChart from '../components/BarChart.vue'
 import LineChart from '../components/LineChart.vue'
 
 const term = ref('')
+const department = ref('')
+const departments = ref([])
 const message = ref('')
 const messageType = ref('info')
 const downloading = ref(false)
@@ -123,13 +125,25 @@ const ensureTerm = () => {
   return true
 }
 
+const loadDepartments = async () => {
+  try {
+    const results = await fetchDepartments({ page_size: 200 })
+    console.log('[ReportsPage] fetchDepartments response:', results)
+    const names = Array.isArray(results) ? results.map((d) => d.name).filter(Boolean) : []
+    console.log('[ReportsPage] department names:', names)
+    departments.value = Array.from(new Set(names)).sort()
+  } catch (e) {
+    console.error('[ReportsPage] Error loading departments:', e)
+  }
+}
+
 const loadAnalytics = async () => {
   if (!ensureTerm()) return
   loadingAnalytics.value = true
   analytics.value = null
   message.value = ''
   try {
-    const data = await fetchAnalytics(term.value)
+    const data = await fetchAnalytics({ term: term.value, department: department.value || undefined })
     analytics.value = data
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(lastTermKey, String(term.value))
@@ -165,6 +179,7 @@ const download = async () => {
 }
 
 onMounted(() => {
+  loadDepartments()
   if (typeof localStorage === 'undefined') return
   const saved = localStorage.getItem(lastTermKey)
   if (saved) {
@@ -187,6 +202,13 @@ onMounted(() => {
           <label class="term-input">
             <span>期 (例: 53)</span>
             <input v-model.number="term" type="number" min="1" placeholder="53" @keyup.enter="loadAnalytics" />
+          </label>
+          <label class="term-input">
+            <span>部門フィルタ</span>
+            <select v-model="department">
+              <option value="">すべて</option>
+              <option v-for="dept in departments" :key="dept" :value="dept">{{ dept }}</option>
+            </select>
           </label>
           <div class="hero__actions">
             <button class="btn primary" :disabled="loadingAnalytics" @click="loadAnalytics">
@@ -405,6 +427,20 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
   font-size: 1rem;
+}
+
+.term-input select {
+  padding: 0.8rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 1rem;
+}
+
+.term-input select option {
+  background: #fff;
+  color: #0f172a;
 }
 
 .term-input input::placeholder {
