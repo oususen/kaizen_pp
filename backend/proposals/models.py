@@ -314,6 +314,13 @@ class ProposalContributor(models.Model):
         default=0,
         help_text="提案ポイントを共同提案者で均等割りした値",
     )
+    reward_amount = models.DecimalField(
+        "報奨金按分",
+        max_digits=10,
+        decimal_places=0,
+        default=0,
+        help_text="報奨金（提案ポイント×300）を共同提案者で均等割りした値",
+    )
 
     class Meta:
         unique_together = ("proposal", "employee")

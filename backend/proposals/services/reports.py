@@ -147,6 +147,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
         employment_value,
         points_share,
         count_share: Decimal,
+        reward_share: Decimal,
         is_primary: bool,
     ):
         joint_label = "主" if is_primary else "共同"
@@ -179,7 +180,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
             "判定区分": source_row["判定区分"],
             "保留": source_row["保留"],
             "提案ポイント": float(points_share.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-            "報奨金": source_row["報奨金"],
+            "報奨金": int(reward_share.quantize(Decimal("0"), rounding=ROUND_HALF_UP)),
             "月額効果[¥/月]": effect_amt,
             "削減工数[Hr/月]": reduction_amt,
             "出金": source_row["出金"],
@@ -192,6 +193,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
         contributors = row.get("contributors") or []
         contributor_count = max(len(contributors), 1)
         total_points = _to_decimal(row.get("提案ポイント")) or Decimal("0")
+        total_reward = total_points * Decimal("300")
         share_weights = _share_weights(contributors) if contributors else []
 
         if contributors:
@@ -204,6 +206,9 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
                 share_val = _to_decimal(getattr(contrib, "classification_points_share", None))
                 if share_val is None:
                     share_val = (total_points / Decimal(contributor_count)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                reward_val = _to_decimal(getattr(contrib, "reward_amount", None))
+                if reward_val is None:
+                    reward_val = (total_reward / Decimal(contributor_count)).quantize(Decimal("0"), rounding=ROUND_HALF_UP)
                 add_summary_row(
                     summary_rows,
                     row,
@@ -212,6 +217,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
                     employment_value,
                     share_val,
                     Decimal(share_ratio),
+                    reward_val,
                     is_primary=is_primary,
                 )
         else:
@@ -223,6 +229,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
                 row.get("雇用形態") or "",
                 total_points,
                 Decimal("1"),
+                total_reward,
                 is_primary=True,
             )
     

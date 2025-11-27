@@ -245,10 +245,12 @@ class ProposalContributorSerializer(serializers.ModelSerializer):
             "is_primary",
             "share_percent",
             "classification_points_share",
+            "reward_amount",
         ]
         extra_kwargs = {
             "share_percent": {"read_only": True},
             "classification_points_share": {"read_only": True},
+            "reward_amount": {"read_only": True},
         }
 
 

@@ -101,7 +101,7 @@ def calculate_classification_points(classification: str | None) -> int | None:
 
 
 def _distribute_classification_points(proposal: ImprovementProposal) -> None:
-    """均等割りで提案ポイントをProposalContributorに保存する。"""
+    """均等割りで提案ポイントと報奨金をProposalContributorに保存する。"""
     from decimal import Decimal, ROUND_HALF_UP
 
     points = proposal.classification_points
@@ -111,20 +111,32 @@ def _distribute_classification_points(proposal: ImprovementProposal) -> None:
     if not contributors:
         return
 
-    total = Decimal(points)
+    total_points = Decimal(points)
+    total_reward = total_points * Decimal("300")
     n = len(contributors)
     if n == 0:
         return
 
-    base = (total / Decimal(n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    # adjust remainder so sum matches
-    remainder = (total - (base * n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    # 提案ポイントの按分
+    base_points = (total_points / Decimal(n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    remainder_points = (total_points - (base_points * n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    # 報奨金の按分（整数）
+    base_reward = (total_reward / Decimal(n)).quantize(Decimal("0"), rounding=ROUND_HALF_UP)
+    remainder_reward = (total_reward - (base_reward * n)).quantize(Decimal("0"), rounding=ROUND_HALF_UP)
+
     for idx, contrib in enumerate(contributors):
-        share = base
-        if remainder and idx == 0:
-            share = (base + remainder).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        contrib.classification_points_share = share
-    ProposalContributor.objects.bulk_update(contributors, ["classification_points_share"])
+        points_share = base_points
+        reward_share = base_reward
+        if idx == 0:
+            # 余りを最初の提案者に加算
+            if remainder_points:
+                points_share = (base_points + remainder_points).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if remainder_reward:
+                reward_share = (base_reward + remainder_reward).quantize(Decimal("0"), rounding=ROUND_HALF_UP)
+        contrib.classification_points_share = points_share
+        contrib.reward_amount = reward_share
+    ProposalContributor.objects.bulk_update(contributors, ["classification_points_share", "reward_amount"])
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
