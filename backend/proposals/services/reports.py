@@ -15,7 +15,7 @@ from proposals.services import fiscal
 
 SUMMARY_COLUMNS = [
     "期", "四半期", "通し番号", "年", "月", "日", "提案部門",
-    "効果部門", "提案者", "雇用形態", "改善テーマ",
+    "効果部門", "提案者", "雇用形態", "共同提案", "件数", "改善テーマ",
     "マインド", "アイデア", "ヒント", "SDGs", "安全", "判定区分",
     "保留", "提案ポイント", "報奨金", "月額効果[¥/月]",
     "削減工数[Hr/月]", "出金", "効果内容・効果算出"
@@ -139,7 +139,24 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
     # Filter by term just in case, though the query should have handled it
     raw_df = raw_df[raw_df["期"] == term_number].copy()
     
-    def add_summary_row(target_list, source_row, person_name, dept_name, employment_value, points_share):
+    def add_summary_row(
+        target_list,
+        source_row,
+        person_name,
+        dept_name,
+        employment_value,
+        points_share,
+        count_share: Decimal,
+        is_primary: bool,
+    ):
+        joint_label = "主" if is_primary else "共同"
+        mind = _safe_int(source_row["マインドセット"]) if is_primary else ""
+        idea = _safe_int(source_row["アイデア工夫"]) if is_primary else ""
+        hint = _safe_int(source_row["みんなのヒント"]) if is_primary else ""
+        effect_amt = source_row["効果額"] if is_primary else ""
+        reduction_amt = source_row["削減時間"] if is_primary else ""
+        sdgs_flag = "○" if (is_primary and source_row.get("sdgs_checked")) else ""
+        safety_flag = "○" if (is_primary and source_row.get("safety_checked")) else ""
         target_list.append({
             "期": source_row["期"],
             "四半期": source_row["四半期"],
@@ -151,18 +168,20 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
             "効果部門": source_row["効果部門"],
             "提案者": person_name,
             "雇用形態": employment_value,
+            "共同提案": joint_label,
+            "件数": float(count_share.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             "改善テーマ": source_row["改善テーマ"],
-            "マインド": _safe_int(source_row["マインドセット"]),
-            "アイデア": _safe_int(source_row["アイデア工夫"]),
-            "ヒント": _safe_int(source_row["みんなのヒント"]),
-            "SDGs": "○" if source_row.get("sdgs_checked") else "",
-            "安全": "○" if source_row.get("safety_checked") else "",
+            "マインド": mind,
+            "アイデア": idea,
+            "ヒント": hint,
+            "SDGs": sdgs_flag,
+            "安全": safety_flag,
             "判定区分": source_row["判定区分"],
             "保留": source_row["保留"],
             "提案ポイント": float(points_share.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             "報奨金": source_row["報奨金"],
-            "月額効果[¥/月]": source_row["効果額"],
-            "削減工数[Hr/月]": source_row["削減時間"],
+            "月額効果[¥/月]": effect_amt,
+            "削減工数[Hr/月]": reduction_amt,
             "出金": source_row["出金"],
             "効果内容・効果算出": source_row["効果内容・効果算出"]
         })
@@ -173,27 +192,39 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
         contributors = row.get("contributors") or []
         contributor_count = max(len(contributors), 1)
         total_points = _to_decimal(row.get("提案ポイント")) or Decimal("0")
-        base_share = (total_points / Decimal(contributor_count)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        share_weights = _share_weights(contributors) if contributors else []
 
-        # 主提案者
-        add_summary_row(
-            summary_rows,
-            row,
-            row["提案者"],
-            row["提案部門"],
-            row.get("雇用形態") or "",
-            base_share,
-        )
-
-        # 共同提案者
-        for contrib in contributors:
-            employee = getattr(contrib, "employee", None)
-            contrib_name = getattr(employee, "name", None) or getattr(contrib, "employee_name", None) or row["提案者"]
-            contrib_dept = getattr(getattr(employee, "department", None), "name", None) or row["提案部門"]
-            employment_value = employment_label(employee) if employee else ""
-            share_val = _to_decimal(getattr(contrib, "classification_points_share", None))
-            share_val = share_val or base_share
-            add_summary_row(summary_rows, row, contrib_name, contrib_dept, employment_value, share_val)
+        if contributors:
+            for contrib, share_ratio in zip(contributors, share_weights):
+                employee = getattr(contrib, "employee", None)
+                is_primary = bool(getattr(contrib, "is_primary", False))
+                contrib_name = getattr(employee, "name", None) or getattr(contrib, "employee_name", None) or row["提案者"]
+                contrib_dept = getattr(getattr(employee, "department", None), "name", None) or row["提案部門"]
+                employment_value = employment_label(employee) if employee else ""
+                share_val = _to_decimal(getattr(contrib, "classification_points_share", None))
+                if share_val is None:
+                    share_val = (total_points / Decimal(contributor_count)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                add_summary_row(
+                    summary_rows,
+                    row,
+                    contrib_name,
+                    contrib_dept,
+                    employment_value,
+                    share_val,
+                    Decimal(share_ratio),
+                    is_primary=is_primary,
+                )
+        else:
+            add_summary_row(
+                summary_rows,
+                row,
+                row["提案者"],
+                row["提案部門"],
+                row.get("雇用形態") or "",
+                total_points,
+                Decimal("1"),
+                is_primary=True,
+            )
     
     return pd.DataFrame(summary_rows, columns=SUMMARY_COLUMNS), raw_df
 
