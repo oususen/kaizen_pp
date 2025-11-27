@@ -15,11 +15,22 @@ from proposals.services import fiscal
 
 SUMMARY_COLUMNS = [
     "期", "四半期", "通し番号", "年", "月", "日", "提案部門",
-    "効果部門", "提案者", "社員", "派遣", "実習生", "改善テーマ",
+    "効果部門", "提案者", "雇用形態", "改善テーマ",
     "マインド", "アイデア", "ヒント", "SDGs", "安全", "判定区分",
     "保留", "提案ポイント", "報奨金", "月額効果[¥/月]",
     "削減工数[Hr/月]", "出金", "効果内容・効果算出"
 ]
+
+
+def employment_label(employee):
+    if not employee:
+        return ""
+    if getattr(employee, "position", ""):
+        return employee.position
+    role_display = getattr(getattr(employee, "Role", None), "choices", None)
+    if role_display:
+        return dict(role_display).get(employee.role, "")
+    return ""
 
 
 def generate_term_report(proposals: Iterable[ImprovementProposal], term_number: int) -> BytesIO:
@@ -75,6 +86,12 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
         if contributors is None:
             contributors = list(p.contributors.select_related("employee__department"))
 
+        manager_approval = approvals.get(ProposalApproval.Stage.MANAGER)
+        sdgs_checked = bool(getattr(manager_approval, "sdgs_flag", False))
+        safety_checked = bool(getattr(manager_approval, "safety_flag", False))
+
+        employment = employment_label(p.proposer)
+
         # Contributing business (Effect Department)
         # Assuming 'contribution_business' might be stored as a string or list in JSON
         # Adapting logic to handle simple string for now, or parse if it looks like a list
@@ -92,15 +109,13 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
             "提案部門": dept_name,
             "効果部門": effect_display,
             "提案者": p.proposer_name,
-            "社員": "○",  # Fixed as per original logic
-            "派遣": "",
-            "実習生": "",
+            "雇用形態": employment,
             "改善テーマ": p.deployment_item,
             "マインドセット": mindset,
             "アイデア工夫": idea,
             "みんなのヒント": hint,
-            "SDGs": "",
-            "安全": "",
+            "SDGs": sdgs_checked,
+            "安全": safety_checked,
             "判定区分": classification,
             "保留": "",
             "提案ポイント": p.classification_points or 0,
@@ -111,6 +126,8 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
             "効果内容・効果算出": p.effect_details or "",
             "提出日時_dt": submitted_at,
             "contributors": contributors,
+            "sdgs_checked": sdgs_checked,
+            "safety_checked": safety_checked,
         }
         rows.append(row)
 
@@ -122,37 +139,61 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
     # Filter by term just in case, though the query should have handled it
     raw_df = raw_df[raw_df["期"] == term_number].copy()
     
-    # Build the formatted summary dataframe
+    def add_summary_row(target_list, source_row, person_name, dept_name, employment_value, points_share):
+        target_list.append({
+            "期": source_row["期"],
+            "四半期": source_row["四半期"],
+            "通し番号": source_row["通し番号"],
+            "年": source_row["年"],
+            "月": source_row["月"],
+            "日": source_row["日"],
+            "提案部門": dept_name,
+            "効果部門": source_row["効果部門"],
+            "提案者": person_name,
+            "雇用形態": employment_value,
+            "改善テーマ": source_row["改善テーマ"],
+            "マインド": _safe_int(source_row["マインドセット"]),
+            "アイデア": _safe_int(source_row["アイデア工夫"]),
+            "ヒント": _safe_int(source_row["みんなのヒント"]),
+            "SDGs": "○" if source_row.get("sdgs_checked") else "",
+            "安全": "○" if source_row.get("safety_checked") else "",
+            "判定区分": source_row["判定区分"],
+            "保留": source_row["保留"],
+            "提案ポイント": float(points_share.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            "報奨金": source_row["報奨金"],
+            "月額効果[¥/月]": source_row["効果額"],
+            "削減工数[Hr/月]": source_row["削減時間"],
+            "出金": source_row["出金"],
+            "効果内容・効果算出": source_row["効果内容・効果算出"]
+        })
+
+    # Build the formatted summary dataframe (with contributor duplicates)
     summary_rows = []
     for _, row in raw_df.iterrows():
-        summary_rows.append({
-            "期": row["期"],
-            "四半期": row["四半期"],
-            "通し番号": row["通し番号"],
-            "年": row["年"],
-            "月": row["月"],
-            "日": row["日"],
-            "提案部門": row["提案部門"],
-            "効果部門": row["効果部門"],
-            "提案者": row["提案者"],
-            "社員": row["社員"],
-            "派遣": row["派遣"],
-            "実習生": row["実習生"],
-            "改善テーマ": row["改善テーマ"],
-            "マインド": _safe_int(row["マインドセット"]),
-            "アイデア": _safe_int(row["アイデア工夫"]),
-            "ヒント": _safe_int(row["みんなのヒント"]),
-            "SDGs": row["SDGs"],
-            "安全": row["安全"],
-            "判定区分": row["判定区分"],
-            "保留": row["保留"],
-            "提案ポイント": row["提案ポイント"],
-            "報奨金": row["報奨金"],
-            "月額効果[¥/月]": row["効果額"],
-            "削減工数[Hr/月]": row["削減時間"],
-            "出金": row["出金"],
-            "効果内容・効果算出": row["効果内容・効果算出"]
-        })
+        contributors = row.get("contributors") or []
+        contributor_count = max(len(contributors), 1)
+        total_points = _to_decimal(row.get("提案ポイント")) or Decimal("0")
+        base_share = (total_points / Decimal(contributor_count)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        # 主提案者
+        add_summary_row(
+            summary_rows,
+            row,
+            row["提案者"],
+            row["提案部門"],
+            row.get("雇用形態") or "",
+            base_share,
+        )
+
+        # 共同提案者
+        for contrib in contributors:
+            employee = getattr(contrib, "employee", None)
+            contrib_name = getattr(employee, "name", None) or getattr(contrib, "employee_name", None) or row["提案者"]
+            contrib_dept = getattr(getattr(employee, "department", None), "name", None) or row["提案部門"]
+            employment_value = employment_label(employee) if employee else ""
+            share_val = _to_decimal(getattr(contrib, "classification_points_share", None))
+            share_val = share_val or base_share
+            add_summary_row(summary_rows, row, contrib_name, contrib_dept, employment_value, share_val)
     
     return pd.DataFrame(summary_rows, columns=SUMMARY_COLUMNS), raw_df
 
@@ -324,14 +365,18 @@ def get_analytics_summary(proposals: Iterable[ImprovementProposal], term_number:
     Generate analytics data for the frontend dashboard.
     Returns a dictionary containing list of records for person summary and department matrix.
     """
-    _, raw_df = build_summary_dataframe(proposals, term_number)
+    summary_df, raw_df = build_summary_dataframe(proposals, term_number)
+    
+    # If no data, return empty lists instead of None to avoid 500s.
+    if summary_df is None or raw_df is None or raw_df.empty:
+        return {"person_summary": [], "department_summary": []}
     
     person_summary = build_person_summary(raw_df)
     department_summary = build_department_month_matrix(raw_df, term_number)
     
     return {
-        "person_summary": person_summary.to_dict(orient="records"),
-        "department_summary": department_summary.to_dict(orient="records"),
+        "person_summary": person_summary.to_dict(orient="records") if person_summary is not None else [],
+        "department_summary": department_summary.to_dict(orient="records") if department_summary is not None else [],
     }
 
 
