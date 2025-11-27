@@ -58,6 +58,14 @@ const stageApproval = (stage) => {
   return approvals.find((a) => a.stage === stage)
 }
 
+const proposalPointShare = computed(() => {
+  const proposal = selectedProposal.value
+  const total = Number(proposal?.classification_points)
+  if (!Number.isFinite(total)) return { share: null, total: null }
+  const contributorCount = Math.max(proposal?.contributors?.length || 1, 1)
+  return { share: total / contributorCount, total }
+})
+
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString('ja-JP') : '')
 
 const statusBadgeClass = (status) => {
@@ -419,6 +427,14 @@ onMounted(loadProposals)
               <div class="detail-item">
                 <label>合計ポイント</label>
                 <span class="total-points">{{ (selectedProposal.mindset_score || 0) + (selectedProposal.idea_score || 0) + (selectedProposal.hint_score || 0) }}点</span>
+              </div>
+              <div class="detail-item">
+                <label>提案ポイント</label>
+                <span v-if="proposalPointShare.share !== null">
+                  {{ proposalPointShare.share.toFixed(2) }}点
+                  <small class="comment">（総計 {{ proposalPointShare.total }}点 を均等割）</small>
+                </span>
+                <span v-else>-</span>
               </div>
             </div>
           </div>

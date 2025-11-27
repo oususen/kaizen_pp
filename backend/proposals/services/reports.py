@@ -103,7 +103,7 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
             "安全": "",
             "判定区分": classification,
             "保留": "",
-            "提案ポイント": "",
+            "提案ポイント": p.classification_points or 0,
             "報奨金": "",
             "効果額": p.effect_amount or 0.0,
             "削減時間": p.reduction_hours or 0.0,
@@ -160,12 +160,12 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
 def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
     columns = [
         "部署", "提案者", "件数", "平均マインド", "平均アイデア",
-        "平均ヒント", "合計ポイント", "削減時間合計[Hr/月]", "効果額合計[¥/月]"
+        "平均ヒント", "合計ポイント", "提案ポイント", "削減時間合計[Hr/月]", "効果額合計[¥/月]"
     ]
     if df.empty:
         return pd.DataFrame(columns=columns)
 
-    dept_col, person_col, count_col, mindset_col, idea_col, hint_col, points_col, reduction_col, effect_col = columns
+    dept_col, person_col, count_col, mindset_col, idea_col, hint_col, points_col, proposal_points_col, reduction_col, effect_col = columns
     summary: dict[tuple[str, str], dict[str, Decimal]] = {}
 
     for _, row in df.iterrows():
@@ -177,6 +177,7 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
         mindset = _to_decimal(row.get("マインドセット"))
         idea = _to_decimal(row.get("アイデア工夫"))
         hint = _to_decimal(row.get("みんなのヒント"))
+        proposal_points_total = _to_decimal(row.get("提案ポイント")) or Decimal("0")
 
         def ensure_entry(dept_name, person_name):
             key = (dept_name or "未設定", person_name or "未設定")
@@ -191,11 +192,14 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
                     "idea_w": Decimal("0"),
                     "hint_sum": Decimal("0"),
                     "hint_w": Decimal("0"),
+                    "proposal_points": Decimal("0"),
                 }
             return summary[key]
 
         if contributors:
             share_weights = _share_weights(contributors)
+            contributor_count = len(contributors) or 1
+            proposal_points_share = (proposal_points_total / Decimal(contributor_count)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             for contrib, share_ratio in zip(contributors, share_weights):
                 employee = getattr(contrib, "employee", None)
                 dept_name = getattr(getattr(employee, "department", None), "name", None) or dept_default
@@ -216,6 +220,7 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
                 if getattr(contrib, "is_primary", False):
                     entry["reduction"] += reduction_val
                     entry["effect"] += effect_val
+                entry["proposal_points"] += proposal_points_share
         else:
             entry = ensure_entry(dept_default, person_default)
             entry["count"] += Decimal("1")
@@ -230,6 +235,7 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
                 entry["hint_w"] += Decimal("1")
             entry["reduction"] += reduction_val
             entry["effect"] += effect_val
+            entry["proposal_points"] += proposal_points_total
 
     rows = []
 
@@ -261,6 +267,7 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
             idea_col: idea_avg,
             hint_col: hint_avg,
             points_col: points_total,
+            proposal_points_col: float(values["proposal_points"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             reduction_col: float(values["reduction"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             effect_col: int(values["effect"].quantize(Decimal("0"))),
         })

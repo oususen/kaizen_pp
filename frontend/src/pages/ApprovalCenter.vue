@@ -98,6 +98,14 @@ const stageApproval = (stage) => {
   return approvals.find((a) => a.stage === stage)
 }
 
+const proposalPointShare = computed(() => {
+  const proposal = selectedProposal.value
+  const total = Number(proposal?.classification_points)
+  if (!Number.isFinite(total)) return { share: null, total: null }
+  const contributorCount = Math.max(proposal?.contributors?.length || 1, 1)
+  return { share: total / contributorCount, total }
+})
+
 const orderedStages = ['supervisor', 'chief', 'manager', 'committee']
 
 const allowedStages = computed(() => {
@@ -249,21 +257,6 @@ const canActOnCurrentStage = computed(() => {
   return !!selectedStage.value && allowedStages.value.includes(selectedStage.value)
 })
 
-const getCurrentFiscalTerm = (date) => {
-  const year = date.getFullYear()
-  const month = date.getMonth() + 1
-  // Fiscal year starts in April
-  return month >= 4 ? year : year - 1
-}
-
-const getCurrentFiscalQuarter = (date) => {
-  const month = date.getMonth() + 1
-  if (month >= 4 && month <= 6) return 1
-  if (month >= 7 && month <= 9) return 2
-  if (month >= 10 && month <= 12) return 3
-  return 4 // Jan-Mar
-}
-
 const openApprovalDialog = () => {
   if (!selectedProposal.value) return
   if (!ensureStage()) return
@@ -274,9 +267,8 @@ const openApprovalDialog = () => {
   form.mindset = selectedProposal.value?.mindset_score ?? 3
   form.idea = selectedProposal.value?.idea_score ?? 3
   form.hint = selectedProposal.value?.hint_score ?? 3
-  const now = new Date()
-  form.term = selectedProposal.value?.term ?? getCurrentFiscalTerm(now)
-  form.quarter = selectedProposal.value?.quarter ?? getCurrentFiscalQuarter(now)
+  form.term = selectedProposal.value?.term ?? ''
+  form.quarter = selectedProposal.value?.quarter ?? ''
   classificationTouched.value = false
   form.proposal_classification = selectedProposal.value?.proposal_classification ?? ''
   if (isManagerStage.value) {
@@ -618,6 +610,14 @@ onMounted(() => {
               <div class="detail-item">
                 <label>合計ポイント</label>
                 <span class="total-points">{{ (selectedProposal.mindset_score || 0) + (selectedProposal.idea_score || 0) + (selectedProposal.hint_score || 0) }}点</span>
+              </div>
+              <div class="detail-item">
+                <label>提案ポイント</label>
+                <span v-if="proposalPointShare.share !== null">
+                  {{ proposalPointShare.share.toFixed(2) }}点
+                  <small class="comment">（総計 {{ proposalPointShare.total }}点 を均等割）</small>
+                </span>
+                <span v-else>-</span>
               </div>
             </div>
           </div>
