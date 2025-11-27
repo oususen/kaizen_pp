@@ -221,7 +221,7 @@ onMounted(() => {
         </p>
         <div class="controls">
           <label class="term-input">
-            <span>期 (例: 53)</span>
+            <span>期 (例: 52)</span>
             <input v-model.number="term" type="number" min="1" placeholder="53" @keyup.enter="loadAnalytics" />
           </label>
           <label class="term-input">
