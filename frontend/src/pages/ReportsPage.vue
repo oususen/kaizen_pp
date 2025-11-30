@@ -222,7 +222,7 @@ onMounted(() => {
         <div class="controls">
           <label class="term-input">
             <span>期 (例: 52)</span>
-            <input v-model.number="term" type="number" min="1" placeholder="53" @keyup.enter="loadAnalytics" />
+            <input v-model.number="term" type="number" min="1" placeholder="52" @keyup.enter="loadAnalytics" />
           </label>
           <label class="term-input">
             <span>部門フィルタ</span>
@@ -300,9 +300,9 @@ onMounted(() => {
           <div v-else class="placeholder">月別データがありません</div>
         </div>
       </div>
-      <div class="card ranking">
+      <div v-if="department" class="card ranking">
         <div class="section-title">
-          <h3>インパクトリーダー</h3>
+          <h3>個人ランキング</h3>
           <span class="chip">効果金額 Top3</span>
         </div>
         <ul>
@@ -316,7 +316,7 @@ onMounted(() => {
           <li v-if="!topIndividuals.length" class="placeholder">データを取得してください</li>
         </ul>
       </div>
-      <div class="card ranking">
+      <div v-else class="card ranking">
         <div class="section-title">
           <h3>部門ランキング</h3>
           <span class="chip">提出件数 Top5</span>
@@ -347,10 +347,6 @@ onMounted(() => {
                 <th>部署</th>
                 <th>氏名</th>
                 <th>件数</th>
-                <th>マインド</th>
-                <th>アイデア</th>
-                <th>ヒント</th>
-                <th>評価ポイント</th>
                 <th>提案ポイント</th>
                 <th>削減時間 (h/年)</th>
                 <th>効果金額 (円)</th>
@@ -361,10 +357,6 @@ onMounted(() => {
                 <td>{{ row['部署'] }}</td>
                 <td>{{ row['提案者'] }}</td>
                 <td>{{ row['件数'] }}</td>
-                <td>{{ row['平均マインド'] }}</td>
-                <td>{{ row['平均アイデア'] }}</td>
-                <td>{{ row['平均ヒント'] }}</td>
-                <td>{{ numberOrZero(row['合計ポイント']).toLocaleString() }}</td>
                 <td>{{ numberOrZero(row['提案ポイント']).toLocaleString() }}</td>
                 <td>{{ row['削減時間合計[Hr/月]'] }}</td>
                 <td>{{ numberOrZero(row['効果額合計[¥/月]']).toLocaleString() }}</td>
@@ -434,36 +426,42 @@ onMounted(() => {
 }
 
 .controls {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 1rem;
-  align-items: end;
-  margin: 1.5rem 0 0.8rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: flex-end;
+  margin: 1.2rem 0 0.6rem 0;
 }
 
 .term-input {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
   font-weight: 600;
+  min-width: 120px;
+  flex: 0 1 auto;
+}
+
+.term-input:first-child {
+  max-width: 140px;
 }
 
 .term-input input {
-  padding: 0.8rem;
-  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .term-input select {
-  padding: 0.8rem;
-  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .term-input select option {
@@ -685,6 +683,11 @@ td {
   padding: 0.9rem 0.8rem;
   text-align: left;
   border-bottom: 1px solid #e5e7eb;
+}
+
+td {
+  color: #111827;
+  font-weight: 500;
 }
 
 th {

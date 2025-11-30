@@ -65,7 +65,7 @@ const handleLogout = async () => {
 }
 .layout--auth {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 173px 1fr;
 }
 aside {
   background: #111827;
