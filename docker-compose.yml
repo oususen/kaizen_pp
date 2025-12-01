@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # MySQL 8.0
+  mysql:
+    image: mysql:8.0
+    container_name: kaizen_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: kaizen_db
+      MYSQL_USER: kaizen_user
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-kaizenpass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql_init:/docker-entrypoint-initdb.d
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - kaizen_network
+
+  # Django Backend
+  backend:
+    build: ./backend
+    container_name: kaizen_backend
+    restart: unless-stopped
+    environment:
+      - PRIMARY_DB_HOST=mysql
+      - PRIMARY_DB_PORT=3306
+      - PRIMARY_DB_USER=root
+      - PRIMARY_DB_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+      - PRIMARY_DB_NAME=kaizen_db
+      - DJANGO_DEBUG=True
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./media:/app/media
+      - ./config.py:/app/config.py
+      - static_volume:/app/staticfiles
+    depends_on:
+      - mysql
+    networks:
+      - kaizen_network
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn kaizen_backend.wsgi:application --bind 0.0.0.0:8000 --workers 4 --reload"
+
+  # Frontend (開発モード)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: kaizen_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    networks:
+      - kaizen_network
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  mysql_data:
+  static_volume:
+
+networks:
+  kaizen_network:
+    driver: bridge
