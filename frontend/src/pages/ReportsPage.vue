@@ -15,6 +15,7 @@ const loadingAnalytics = ref(false)
 const analytics = ref(null)
 const lastTermKey = 'kaizen:reports:last-term'
 const fiscalMonths = [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+// Departments: we will prioritize division/section (部・課) when ordering the dropdown.
 
 const numberOrZero = (value) => {
   const num = Number(value)
@@ -142,13 +143,51 @@ const ensureTerm = () => {
   return true
 }
 
+const normalizeName = (name) =>
+  String(name ?? '')
+    .normalize('NFKC')
+    .replace(/\s+/g, '')
+    .trim()
+
 const loadDepartments = async () => {
   try {
     const results = await fetchDepartments({ page_size: 200 })
     console.log('[ReportsPage] fetchDepartments response:', results)
-    const names = Array.isArray(results) ? results.map((d) => d.name).filter(Boolean) : []
-    console.log('[ReportsPage] department names:', names)
-    departments.value = Array.from(new Set(names)).sort()
+    const deptObjects = Array.isArray(results)
+      ? results
+          .map((d) =>
+            typeof d === 'string'
+              ? { name: String(d), level: '' }
+              : { name: d?.name, level: d?.level ?? '' }
+          )
+          .filter((d) => d.name)
+      : []
+
+    const seen = new Set()
+    const uniqueOrdered = []
+    deptObjects.forEach((dept) => {
+      const key = `${normalizeName(dept.name)}|${dept.level}`
+      if (seen.has(key)) return
+      seen.add(key)
+      uniqueOrdered.push(dept)
+    })
+
+    const divisions = []
+    const sections = []
+    const others = []
+    uniqueOrdered.forEach((dept) => {
+      if (dept.level === 'division') {
+        divisions.push(dept)
+      } else if (dept.level === 'section') {
+        sections.push(dept)
+      } else {
+        others.push(dept)
+      }
+    })
+
+    const ordered = [...divisions, ...sections, ...others].map((d) => d.name.trim())
+    console.log('[ReportsPage] department names (ordered with divisions/sections first):', ordered)
+    departments.value = ordered
   } catch (e) {
     console.error('[ReportsPage] Error loading departments:', e)
   }
