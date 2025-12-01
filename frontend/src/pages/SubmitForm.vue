@@ -521,7 +521,7 @@ onMounted(() => {
 
       <label>
         削減時間 (Hr/月)*
-        <input v-model.number="form.reduction_hours" type="number" min="0" step="0.5" required />
+        <input v-model.number="form.reduction_hours" type="number" min="0" step="0.01" required />
       </label>
 
       <label>

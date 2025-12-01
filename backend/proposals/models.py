@@ -79,7 +79,7 @@ class Proposal(models.Model):
     result_detail = models.TextField(blank=True)
     contribution_business = models.CharField(max_length=255, blank=True)
     reduction_hours = models.DecimalField(
-        max_digits=6, decimal_places=1, null=True, blank=True
+        max_digits=6, decimal_places=2, null=True, blank=True
     )
     effect_amount = models.DecimalField(
         max_digits=12, decimal_places=0, null=True, blank=True
@@ -238,7 +238,7 @@ class ImprovementProposal(models.Model):
     reduction_hours = models.DecimalField(
         "削減時間(Hr/月)",
         max_digits=6,
-        decimal_places=1,
+        decimal_places=2,
         null=True,
         blank=True,
     )
