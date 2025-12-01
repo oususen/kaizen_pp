@@ -176,6 +176,16 @@ const getRoleLabel = (role) => {
   return option ? option.label : role
 }
 
+const shouldHideEmployeeName = (user) => {
+  const username = (user?.username || '').toLowerCase()
+  return username === 'admin' || username === 'daiso'
+}
+
+const getEmployeeName = (user) => {
+  if (shouldHideEmployeeName(user)) return ''
+  return user.employee_name || '-'
+}
+
 const getDepartmentName = (deptId) => {
   const dept = departments.value.find(d => d.id === deptId)
   return dept ? dept.name : ''
@@ -215,7 +225,7 @@ onMounted(() => {
             <td>{{ user.profile?.email || user.email || '-' }}</td>
             <td>{{ getRoleLabel(user.profile?.role) }}</td>
             <td>{{ getDepartmentName(user.profile?.responsible_department) }}</td>
-            <td>{{ user.employee_name || '-' }}</td>
+            <td>{{ getEmployeeName(user) }}</td>
             <td v-if="canEditUsers" class="actions">
               <button @click="openEditModal(user)" class="btn-edit">編集</button>
               <button @click="handleDelete(user)" class="btn-delete">削除</button>
