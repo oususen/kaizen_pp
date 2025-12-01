@@ -553,7 +553,7 @@ onMounted(() => {
               </div>
               <div class="detail-item">
                 <label>効果額</label>
-                <span>\{{ (selectedProposal.effect_amount || 0).toLocaleString() }}/月</span>
+                <span>￥{{ (selectedProposal.effect_amount || 0).toLocaleString() }}円/月</span>
               </div>
               <div class="detail-item" v-if="effectDepartments(selectedProposal)">
                 <label>効果部門</label>
@@ -750,7 +750,7 @@ onMounted(() => {
           <div v-if="isManagerStage">
             <label>
               提案判定*
-              <select v-model="form.proposal_classification" @change="onProposalClassificationChange" required>
+              <select v-model="form.proposal_classification" @change="onProposalClassificationChange" required disabled>
                 <option value="" disabled>選択してください</option>
                 <option v-for="opt in classificationOptions" :key="opt.value" :value="opt.value">
                   {{ opt.label }}
@@ -1343,6 +1343,32 @@ onMounted(() => {
 
 .btn-submit:hover:not(:disabled) {
   background: #2563eb;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.checkbox span {
+  font-weight: 600;
+  color: #374151;
+  user-select: none;
 }
 
 @media (max-width: 1024px) {
