@@ -128,6 +128,19 @@ const normalizedImages = (kind) => {
 const beforeImages = computed(() => normalizedImages('before'))
 const afterImages = computed(() => normalizedImages('after'))
 
+const effectDepartments = (proposal) => {
+  const raw = proposal?.contribution_business
+  if (Array.isArray(raw)) return raw.filter(Boolean).join('、')
+  if (typeof raw === 'string') {
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join('、')
+  }
+  return ''
+}
+
 // 班長以上の権限チェック
 const canDelete = computed(() => {
   const role = auth.state.employee?.profile?.role || auth.state.employee?.role
@@ -335,6 +348,10 @@ onMounted(loadProposals)
               <div class="detail-item">
                 <label>効果額</label>
                 <span>¥{{ (selectedProposal.effect_amount || 0).toLocaleString() }}/月</span>
+              </div>
+              <div class="detail-item" v-if="effectDepartments(selectedProposal)">
+                <label>効果部門</label>
+                <span>{{ effectDepartments(selectedProposal) }}</span>
               </div>
             </div>
           </div>

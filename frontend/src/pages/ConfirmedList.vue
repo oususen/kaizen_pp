@@ -151,6 +151,19 @@ const normalizedImages = (kind) => {
 const beforeImages = computed(() => normalizedImages('before'))
 const afterImages = computed(() => normalizedImages('after'))
 
+const effectDepartments = (proposal) => {
+  const raw = proposal?.contribution_business
+  if (Array.isArray(raw)) return raw.filter(Boolean).join('、')
+  if (typeof raw === 'string') {
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join('、')
+  }
+  return ''
+}
+
 onMounted(async () => {
   await loadDepartments()
   await loadData()
@@ -351,6 +364,10 @@ onMounted(async () => {
               <div class="detail-item">
                 <label>効果額</label>
                 <span>\{{ (selectedProposal.effect_amount || 0).toLocaleString() }}/月</span>
+              </div>
+              <div class="detail-item" v-if="effectDepartments(selectedProposal)">
+                <label>効果部門</label>
+                <span>{{ effectDepartments(selectedProposal) }}</span>
               </div>
             </div>
           </div>
