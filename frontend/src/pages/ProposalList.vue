@@ -33,6 +33,15 @@ const message = ref('')
 const deleteDialogOpen = ref(false)
 const proposalToDelete = ref(null)
 
+// Lightbox state
+const selectedImage = ref(null)
+const openLightbox = (image) => {
+  selectedImage.value = image
+}
+const closeLightbox = () => {
+  selectedImage.value = null
+}
+
 const stageLabel = (value) => stageOptions.find((option) => option.value === value)?.label ?? value
 
 const contributorsOf = (proposal) => {
@@ -361,11 +370,11 @@ onMounted(loadProposals)
             <div class="images-grid">
               <div v-for="image in beforeImages" :key="`before-${image.id || image.path}`" class="image-item">
                 <label>改善前</label>
-                <img :src="image.url || image.path || image" alt="改善前" />
+                <img :src="image.url || image.path || image" alt="改善前" @click="openLightbox(image)" class="clickable-image" />
               </div>
               <div v-for="image in afterImages" :key="`after-${image.id || image.path}`" class="image-item">
                 <label>改善後</label>
-                <img :src="image.url || image.path || image" alt="改善後" />
+                <img :src="image.url || image.path || image" alt="改善後" @click="openLightbox(image)" class="clickable-image" />
               </div>
             </div>
           </div>
@@ -507,6 +516,14 @@ onMounted(loadProposals)
           <button type="button" @click="closeDeleteDialog" class="btn-cancel">キャンセル</button>
           <button type="button" @click="confirmDelete" class="btn-danger">削除する</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div v-if="selectedImage" class="lightbox-overlay" @click.self="closeLightbox">
+      <div class="lightbox-content">
+        <img :src="selectedImage.url || selectedImage.path || selectedImage" alt="拡大画像" />
+        <button class="lightbox-close" @click="closeLightbox">×</button>
       </div>
     </div>
   </section>
@@ -735,6 +752,64 @@ onMounted(loadProposals)
 
 .btn-delete:hover {
   background: #dc2626;
+}
+
+.btn-delete:hover {
+  background: #dc2626;
+}
+
+.clickable-image {
+  cursor: zoom-in;
+  transition: transform 0.2s;
+}
+
+.clickable-image:hover {
+  transform: scale(1.02);
+}
+
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 2rem;
+}
+
+.lightbox-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.lightbox-content img {
+  max-width: 100%;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 3rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 1rem;
+}
+
+.lightbox-close:hover {
+  color: #e5e7eb;
 }
 
 .detail-content {
