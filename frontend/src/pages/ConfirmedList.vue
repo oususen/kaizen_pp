@@ -616,7 +616,7 @@ onMounted(async () => {
 
 .content-layout {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 180px 1fr;
   gap: 1.5rem;
   min-height: 500px;
 }

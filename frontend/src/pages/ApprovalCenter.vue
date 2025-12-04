@@ -858,7 +858,7 @@ onMounted(() => {
 
 .content-layout {
   display: grid;
-  grid-template-columns: 400px 1fr;
+  grid-template-columns: 200px 1fr;
   gap: 1.5rem;
   min-height: 600px;
 }
