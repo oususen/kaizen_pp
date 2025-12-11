@@ -247,6 +247,12 @@ docker-compose -f docker-compose.prod.yml restart backend
 - バックエンドの `.env` 読み込み順を「リポジトリ直下 `.env` → `/app/.env` → `backend/.env`」に変更。仮想環境で動かす場合もこの順で読むため、必要な環境変数はリポジトリ直下に置いてください。
 - `backend/requirements.txt` に `pymysql`, `cryptography`, `pandas` を追加（mysqlclient ビルド失敗時の保険）。仮想環境で不要ならインストールをスキップ可能です。
 - 本番向けに別ファイルで行っていた Cookie/SameSite/Session の緩和設定（SameSite=None など）は、開発PCブラウザ挙動が変わるため未反映。クロスオリジンで必要になった場合のみ調整してください。
+- `pip install -r ...` がランチャーのパス解決エラーで失敗する場合は、仮想環境の Python から直接 pip を呼び出してください:
+  ```bash
+  cd D:\kaizen_pp\backend
+  ..\venv\Scripts\python.exe -m pip install -r requirements.txt
+  ```
+  これで `whitenoise` など追加依存も入り、`python manage.py runserver 0.0.0.0:8001` が起動します。
 
 ---
 
