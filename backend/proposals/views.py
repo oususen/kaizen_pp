@@ -7,6 +7,7 @@ from django.http import HttpResponse
 from django.contrib.auth import authenticate, login, logout
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from django.middleware.csrf import get_token
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -692,31 +693,35 @@ class LoginView(APIView):
         if not user:
             return Response({'detail': '認証に失敗しました'}, status=status.HTTP_400_BAD_REQUEST)
         login(request, user)
+        csrf_token = get_token(request)
 
         # UserProfileベースのユーザー（新システム）の場合
         user_profile = getattr(user, "profile", None)
         if user_profile:
             user_data = UserSerializer(user).data
-            return Response({
+            response_data = {
                 'username': user.username,
                 'name': user.first_name or user.username,
                 'profile': user_data.get('profile'),
                 'permissions': user_data.get('permissions', [])
-            })
+            }
 
-        # 従来のEmployeeベースのユーザーの場合
-        employee = getattr(user, 'employee_profile', None)
-        employee_data = EmployeeSerializer(employee).data if employee else None
+        else:
+            # 従来のEmployeeベースのユーザーの場合
+            employee = getattr(user, 'employee_profile', None)
+            employee_data = EmployeeSerializer(employee).data if employee else None
 
-        # ユーザーの権限を追加
-        if employee_data:
-            user_permissions = UserPermissionSerializer(
-                user.permissions.all(),
-                many=True
-            ).data
-            employee_data['permissions'] = user_permissions
+            # ユーザーの権限を追加
+            if employee_data:
+                user_permissions = UserPermissionSerializer(
+                    user.permissions.all(),
+                    many=True
+                ).data
+                employee_data['permissions'] = user_permissions
 
-        return Response({'username': user.username, 'employee': employee_data})
+            response_data = {'username': user.username, 'employee': employee_data}
+
+        return Response(response_data)
 
 
 class LogoutView(APIView):
@@ -793,5 +798,3 @@ class UserPermissionViewSet(viewsets.ModelViewSet):
         if user_id:
             queryset = queryset.filter(user_id=user_id)
         return queryset
-
-

@@ -10,11 +10,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Pythonパッケージのインストール
-COPY requirements.txt .
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# アプリケーションコードをコピー
-COPY . .
+# アプリケーションコードをコピー（config.pyも含めるためビルドコンテキストはリポジトリルートにする）
+COPY backend /app
+COPY config.py /app/config.py
 
 # 静的ファイルとメディアファイル用ディレクトリ
 RUN mkdir -p /app/staticfiles /app/media
@@ -22,6 +23,7 @@ RUN mkdir -p /app/staticfiles /app/media
 # 環境変数
 ENV PYTHONUNBUFFERED=1
 ENV DJANGO_SETTINGS_MODULE=kaizen_backend.settings
+ENV PYTHONPATH=/app:$PYTHONPATH
 
 # ポート公開
 EXPOSE 8000

@@ -52,7 +52,8 @@ PRIMARY_DB_PASSWORD=既存MySQLのrootパスワード
 PRIMARY_DB_NAME=kaizen_db
 ```
 
-**重要**: `PRIMARY_DB_PASSWORD` に既存Docker MySQLのrootパスワードを入力してください。
+**重要**: `PRIMARY_DB_PASSWORD` に既存Docker MySQLのrootパスワードを入力してください。  
+**補足**: バックエンドはリポジトリ直下の `.env` を最優先で読み込みます（無い場合は `/app/.env` → `backend/.env` の順）。必ずリポジトリ直下に `.env` を配置してください。
 
 ---
 
@@ -124,7 +125,7 @@ services:
 ```bash
 cd C:\kaizen_pp
 
-# コンテナをビルド＆起動
+# コンテナをビルド＆起動（必ずリポジトリルートで実行）
 docker-compose -f docker-compose.prod.yml up -d --build
 ```
 
@@ -237,6 +238,15 @@ docker-compose -f docker-compose.prod.yml ps
 # バックエンドのみ再起動
 docker-compose -f docker-compose.prod.yml restart backend
 ```
+
+---
+
+## 開発PC（仮想環境起動）との差分メモ
+
+- Dockerビルドはリポジトリ直下をビルドコンテキストに変更。`config.py` をイメージへ確実に含めるためです。`docker-compose*.yml` はこの前提に合わせています。
+- バックエンドの `.env` 読み込み順を「リポジトリ直下 `.env` → `/app/.env` → `backend/.env`」に変更。仮想環境で動かす場合もこの順で読むため、必要な環境変数はリポジトリ直下に置いてください。
+- `backend/requirements.txt` に `pymysql`, `cryptography`, `pandas` を追加（mysqlclient ビルド失敗時の保険）。仮想環境で不要ならインストールをスキップ可能です。
+- 本番向けに別ファイルで行っていた Cookie/SameSite/Session の緩和設定（SameSite=None など）は、開発PCブラウザ挙動が変わるため未反映。クロスオリジンで必要になった場合のみ調整してください。
 
 ---
 

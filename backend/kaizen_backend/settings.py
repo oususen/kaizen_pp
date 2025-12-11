@@ -18,11 +18,21 @@ from dotenv import load_dotenv
 # ルートの config.py を読み込むためにパスを追加
 BASE_DIR = Path(__file__).resolve().parent.parent
 ROOT_DIR = BASE_DIR.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 if str(ROOT_DIR) not in sys.path:
-    sys.path.append(str(ROOT_DIR))
+    sys.path.insert(0, str(ROOT_DIR))
 
-# .envファイルを読み込む
-load_dotenv(os.path.join(BASE_DIR, '.env'))
+# .envファイルを読み込む（ルート優先、無ければコンテナ標準パス、その後backend直下）
+_env_candidates = [
+    ROOT_DIR / ".env",
+    Path("/app/.env"),
+    BASE_DIR / ".env",
+]
+for _env_path in _env_candidates:
+    if _env_path and _env_path.exists():
+        load_dotenv(_env_path)
+        break
 
 from config import get_mysql_settings
 
@@ -58,6 +68,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'kaizen_backend.middleware.EnsureCSRFCookieMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -167,6 +178,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5000",
     "http://172.31.240.1:5000",
     "http://10.0.1.194:5000",
+    # ポート8503の追加（本番・開発環境）
+    "http://localhost:8503",
+    "http://127.0.0.1:8503",
+    "http://10.0.1.194:8503",  # 開発PC
+    "http://10.0.1.232:8503",  # 本番PC
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -178,6 +194,11 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5000",
     "http://172.31.240.1:5000",
     "http://10.0.1.194:5000",
+    # ポート8503の追加（本番・開発環境）
+    "http://localhost:8503",
+    "http://127.0.0.1:8503",
+    "http://10.0.1.194:8503",  # 開発PC
+    "http://10.0.1.232:8503",  # 本番PC
 ]
 
 # CSRF Cookie設定
@@ -240,6 +261,4 @@ LOGGING = {
         },
     },
 }
-
-
 

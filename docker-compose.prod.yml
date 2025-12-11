@@ -3,7 +3,9 @@ version: '3.8'
 services:
   # Django Backend
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: kaizen_backend_prod
     restart: always
     environment:
