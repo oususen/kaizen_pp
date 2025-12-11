@@ -158,11 +158,11 @@ docker-compose -f docker-compose.prod.yml logs -f
 ブラウザでアクセス:
 
 **本番PC上:**
-- フロントエンド: http://localhost:8503
+- フロントエンド: http://localhost:8503/submit  （トップ直アクセスではなく /submit を開く）
 - バックエンドAPI: http://localhost:8083/api/
 
 **開発PCから:**
-- フロントエンド: http://10.0.1.232:8503
+- フロントエンド: http://10.0.1.232:8503/submit  （http://10.0.1.232:8503 だけではログイン不可）
 - バックエンドAPI: http://10.0.1.232:8083/api/
 
 **確認項目**:
