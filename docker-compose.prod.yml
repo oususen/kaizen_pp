@@ -20,12 +20,15 @@ services:
     volumes:
       - ./media:/app/media
       - static_volume:/app/staticfiles
+      - ./.env:/app/.env:ro
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
              gunicorn kaizen_backend.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - ts_pm_network_v2
 
   # Frontend (Nginx)
   frontend:
@@ -34,15 +37,17 @@ services:
     restart: always
     ports:
       - "8503:80"
+    volumes:
+      - ./media:/app/media
+      - static_volume:/app/staticfiles
     depends_on:
       - backend
+    networks:
+      - ts_pm_network_v2
 
 volumes:
   static_volume:
 
-# 既存のMySQLコンテナのネットワークに接続する場合は、
-# 以下のnetworksセクションのコメントを外して、既存のネットワーク名を指定してください
-# networks:
-#   existing_network:
-#     external: true
-#     name: 既存のネットワーク名
+networks:
+  ts_pm_network_v2:
+    external: true
