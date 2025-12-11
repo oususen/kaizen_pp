@@ -1,47 +1,29 @@
 version: '3.8'
 
 services:
-  # MySQL 8.0
-  mysql:
-    image: mysql:8.0
-    container_name: kaizen_mysql_prod
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: kaizen_db
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    networks:
-      - kaizen_network
-
   # Django Backend
   backend:
     build: ./backend
     container_name: kaizen_backend_prod
     restart: always
     environment:
-      - PRIMARY_DB_HOST=mysql
-      - PRIMARY_DB_PORT=3306
-      - PRIMARY_DB_USER=root
-      - PRIMARY_DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - PRIMARY_DB_NAME=kaizen_db
+      - PRIMARY_DB_HOST=${PRIMARY_DB_HOST:-mysql}
+      - PRIMARY_DB_PORT=${PRIMARY_DB_PORT:-3306}
+      - PRIMARY_DB_USER=${PRIMARY_DB_USER:-root}
+      - PRIMARY_DB_PASSWORD=${PRIMARY_DB_PASSWORD}
+      - PRIMARY_DB_NAME=${PRIMARY_DB_NAME:-kaizen_db}
       - DJANGO_DEBUG=False
-    expose:
-      - "8000"
+    ports:
+      - "8083:8000"
     volumes:
       - ./media:/app/media
       - static_volume:/app/staticfiles
-    depends_on:
-      - mysql
-    networks:
-      - kaizen_network
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
              gunicorn kaizen_backend.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # Frontend (Nginx)
   frontend:
@@ -49,16 +31,16 @@ services:
     container_name: kaizen_frontend_prod
     restart: always
     ports:
-      - "80:80"
+      - "8503:80"
     depends_on:
       - backend
-    networks:
-      - kaizen_network
 
 volumes:
-  mysql_data:
   static_volume:
 
-networks:
-  kaizen_network:
-    driver: bridge
+# 既存のMySQLコンテナのネットワークに接続する場合は、
+# 以下のnetworksセクションのコメントを外して、既存のネットワーク名を指定してください
+# networks:
+#   existing_network:
+#     external: true
+#     name: 既存のネットワーク名

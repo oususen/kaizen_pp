@@ -33,7 +33,7 @@ services:
       - PRIMARY_DB_NAME=kaizen_db
       - DJANGO_DEBUG=True
     ports:
-      - "8000:8000"
+      - "8083:8000"
     volumes:
       - ./backend:/app
       - ./media:/app/media
@@ -56,12 +56,12 @@ services:
     container_name: kaizen_frontend
     restart: unless-stopped
     ports:
-      - "5173:5173"
+      - "8503:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=http://localhost:8083
     networks:
       - kaizen_network
     command: npm run dev -- --host 0.0.0.0

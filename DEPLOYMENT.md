@@ -4,7 +4,7 @@
 
 - Docker & Docker Compose がインストール済み
 - Git がインストール済み
-- ポート 80, 3306, 8000 が利用可能
+- ポート 8503（フロントエンド）, 8083（バックエンド）, 3306（MySQL）が利用可能
 
 ## 本番PCでの初回セットアップ
 
@@ -67,8 +67,8 @@ docker-compose -f docker-compose.prod.yml logs -f mysql
 
 ### 6. 動作確認
 
-- フロントエンド: http://localhost
-- バックエンドAPI: http://localhost:8000/api/
+- フロントエンド: http://localhost:8503
+- バックエンドAPI: http://localhost:8083/api/
 
 ### 7. 管理者ユーザーの作成（必要な場合）
 
@@ -185,5 +185,5 @@ docker-compose up -d --build
 ```
 
 開発環境では:
-- フロントエンド: http://localhost:5173 (ホットリロード有効)
-- バックエンド: http://localhost:8000 (自動リロード有効)
+- フロントエンド: http://localhost:8503 (ホットリロード有効)
+- バックエンド: http://localhost:8083 (自動リロード有効)
