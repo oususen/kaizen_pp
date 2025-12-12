@@ -29,7 +29,8 @@ const form = reactive({
   improvement_result: '',
   effect_details: '',
   contribution_business: [],
-  reduction_hours: '',
+  reduction_hours: null,
+  effect_amount: null,
   before_images: [],
   after_images: [],
 })
@@ -80,9 +81,21 @@ const effectDepartmentOptions = computed(() =>
 )
 
 const effectAmount = computed(() => {
+  // 優先: 手入力の月間効果額、未入力なら削減時間×1700で自動計算
+  const manual = Number(form.effect_amount)
+  if (!Number.isNaN(manual) && form.effect_amount !== null && form.effect_amount !== '') {
+    return manual
+  }
   const hours = Number(form.reduction_hours) || 0
   return Math.round(hours * 1700)
 })
+
+const hasReductionHours = computed(
+  () => form.reduction_hours !== null && form.reduction_hours !== '' && !Number.isNaN(Number(form.reduction_hours)),
+)
+const hasEffectAmount = computed(
+  () => form.effect_amount !== null && form.effect_amount !== '' && !Number.isNaN(Number(form.effect_amount)),
+)
 
 const loadMaster = async () => {
   try {
@@ -116,7 +129,8 @@ const resetForm = () => {
     improvement_result: '',
     effect_details: '',
     contribution_business: [],
-    reduction_hours: '',
+    reduction_hours: null,
+    effect_amount: null,
     before_images: [],
     after_images: [],
   })
@@ -345,6 +359,10 @@ const submitProposal = async () => {
     message.value = '必須項目を入力してください'
     return
   }
+  if (!hasReductionHours.value && !hasEffectAmount.value) {
+    message.value = '削減時間 または 月間効果額を入力してください'
+    return
+  }
   loading.value = true
   try {
     if (primaryContributor.employee) {
@@ -379,6 +397,7 @@ const submitProposal = async () => {
       effect_details: form.effect_details,
       contribution_business: form.contribution_business.join(', '),
       reduction_hours: form.reduction_hours,
+      effect_amount: form.effect_amount,
       before_images: form.before_images,
       after_images: form.after_images,
       contributors,
@@ -403,7 +422,7 @@ onMounted(() => {
     <header class="section-header">
       <div>
         <h2>📝 改善提案 提出フォーム</h2>
-        <p>削減時間を入力すると効果額が自動計算されます。</p>
+        <p>削減時間を入力すると効果額が自動計算されます。月間金額を直接入力することもできます。</p>
       </div>
       <div class="effect">
         <span>月間効果額</span>
@@ -520,8 +539,31 @@ onMounted(() => {
       </label>
 
       <label>
-        削減時間 (Hr/月)*
-        <input v-model.number="form.reduction_hours" type="number" min="0" step="0.01" required />
+        削減時間 (Hr/月)
+        <input
+          v-model.number="form.reduction_hours"
+          type="number"
+          min="0"
+          step="0.01"
+          :readonly="hasEffectAmount"
+        />
+        <small style="color: #64748b;">この欄に値があると月間効果額を自動計算し、金額欄は入力不可になります。</small>
+      </label>
+
+      <label>
+        月間効果額 (円/月)
+        <input
+          :value="hasReductionHours ? effectAmount : form.effect_amount"
+          @input="form.effect_amount = $event.target.value === '' ? null : Number($event.target.value)"
+          type="number"
+          min="0"
+          step="1"
+          inputmode="numeric"
+          :readonly="hasReductionHours"
+        />
+        <small style="color: #64748b;">
+          この欄に値があると時間欄は入力不可になります。削減時間を入れるとここに自動計算(×1700)が表示されます。
+        </small>
       </label>
 
       <label>
@@ -999,11 +1041,6 @@ button:disabled {
   }
 }
 </style>
-
-
-
-
-
 
 
 
