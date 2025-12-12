@@ -93,6 +93,13 @@ def build_summary_dataframe(
         if contributors is None:
             contributors = list(p.contributors.select_related("employee__department"))
 
+        # フィルタリング前に元のshare_weightsを計算して各contributorに保存
+        if contributors:
+            original_share_weights = _share_weights(contributors)
+            for contrib, share_weight in zip(contributors, original_share_weights):
+                # 元のshare_weightを一時属性として保存
+                contrib._original_share_weight = share_weight
+
         # 部門フィルター適用時：その部門の従業員（contributor）のみを残す
         if department_filter and contributors:
             contributors = [
@@ -217,7 +224,18 @@ def build_summary_dataframe(
         contributor_count = max(len(contributors), 1)
         total_points = _to_decimal(row.get("提案ポイント")) or Decimal("0")
         total_reward = total_points * Decimal("300")
-        share_weights = _share_weights(contributors) if contributors else []
+
+        # 元のshare_weightsを使用（フィルタリング前に計算済み）
+        share_weights = []
+        if contributors:
+            for contrib in contributors:
+                # _original_share_weight属性があればそれを使用、なければ再計算
+                if hasattr(contrib, '_original_share_weight'):
+                    share_weights.append(contrib._original_share_weight)
+                else:
+                    # フォールバック（部門フィルターなしの場合）
+                    share_weights = _share_weights(contributors)
+                    break
 
         if contributors:
             for contrib, share_ratio in zip(contributors, share_weights):
@@ -299,7 +317,16 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
             return summary[key]
 
         if contributors:
-            share_weights = _share_weights(contributors)
+            # 元のshare_weightsを使用（フィルタリング前に計算済み）
+            share_weights = []
+            for contrib in contributors:
+                if hasattr(contrib, '_original_share_weight'):
+                    share_weights.append(contrib._original_share_weight)
+                else:
+                    # フォールバック（部門フィルターなしの場合）
+                    share_weights = _share_weights(contributors)
+                    break
+
             contributor_count = len(contributors) or 1
             for contrib, share_ratio in zip(contributors, share_weights):
                 employee = getattr(contrib, "employee", None)
@@ -400,7 +427,16 @@ def build_department_month_matrix(df: pd.DataFrame, term_number: int) -> pd.Data
         dept_default = row.get("提案部門") or "未設定"
 
         if contributors:
-            share_weights = _share_weights(contributors)
+            # 元のshare_weightsを使用（フィルタリング前に計算済み）
+            share_weights = []
+            for contrib in contributors:
+                if hasattr(contrib, '_original_share_weight'):
+                    share_weights.append(contrib._original_share_weight)
+                else:
+                    # フォールバック（部門フィルターなしの場合）
+                    share_weights = _share_weights(contributors)
+                    break
+
             for contrib, share_ratio in zip(contributors, share_weights):
                 employee = getattr(contrib, "employee", None)
                 dept_name = getattr(getattr(employee, "department", None), "name", None) or dept_default
