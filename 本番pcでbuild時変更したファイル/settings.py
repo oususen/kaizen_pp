@@ -23,16 +23,12 @@ if str(BASE_DIR) not in sys.path:
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-# .envファイルを読み込む（ルート優先、無ければコンテナ標準パス、その後backend直下）
-_env_candidates = [
-    ROOT_DIR / ".env",
-    Path("/app/.env"),
-    BASE_DIR / ".env",
-]
-for _env_path in _env_candidates:
-    if _env_path and _env_path.exists():
-        load_dotenv(_env_path)
-        break
+# .envファイルを読み込む
+env_path = os.path.join(ROOT_DIR, '.env')
+if not os.path.exists(env_path):
+    # Dockerコンテナの場合
+    env_path = '/app/.env'
+load_dotenv(env_path)
 
 from config import get_mysql_settings
 
@@ -45,6 +41,7 @@ SECRET_KEY = 'django-insecure-fy+ix7*2g_k-ov2g^=8ze_xv3_jt+#(apfg8+m*o%@dx&nei(#
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
 
 ALLOWED_HOSTS = ["*"]
 
@@ -64,12 +61,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'kaizen_backend.middleware.EnsureCSRFCookieMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -162,7 +157,7 @@ USE_TZ = False
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = '/static/'
+STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
@@ -170,10 +165,6 @@ MEDIA_ROOT = ROOT_DIR / 'media'
 # Use relative media URLs by default so frontends resolve host/origin.
 # Set environment variable MEDIA_USE_RELATIVE_URLS=False to force absolute URLs.
 MEDIA_USE_RELATIVE_URLS = os.environ.get('MEDIA_USE_RELATIVE_URLS', 'True') == 'True'
-
-# Upload limits (avoid 413 Request Entity Too Large from Django)
-DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', 50 * 1024 * 1024))  # 50MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_SIZE', 50 * 1024 * 1024))  # 50MB
 
 
 CORS_ALLOWED_ORIGINS = [
@@ -183,11 +174,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5000",
     "http://172.31.240.1:5000",
     "http://10.0.1.194:5000",
-    # ポート8503の追加（本番・開発環境）
-    "http://localhost:8503",
-    "http://127.0.0.1:8503",
-    "http://10.0.1.194:8503",  # 開発PC
-    "http://10.0.1.232:8503",  # 本番PC
+    "http://10.0.1.232:8503",  # 本番環境フロントエンド
+    "http://localhost:8503",     # ローカルテスト用
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -199,19 +187,29 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5000",
     "http://172.31.240.1:5000",
     "http://10.0.1.194:5000",
-    # ポート8503の追加（本番・開発環境）
-    "http://localhost:8503",
-    "http://127.0.0.1:8503",
-    "http://10.0.1.194:8503",  # 開発PC
-    "http://10.0.1.232:8503",  # 本番PC
+    "http://10.0.1.232:8503",  # 本番環境フロントエンド
+    "http://localhost:8503",     # ローカルテスト用
 ]
 
 # CSRF Cookie設定
 CSRF_COOKIE_HTTPONLY = False  # JavaScriptからCSRFトークンを読めるようにする
-CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'None'  # CORS対応のため None に設定
 CSRF_COOKIE_SECURE = False  # 開発環境ではFalse (本番環境ではTrue)
 
+# Session Cookie設定（CORS対応）
+SESSION_COOKIE_SAMESITE = 'None'  # クロスサイトでクッキーを送信できるように
+SESSION_COOKIE_SECURE = False  # 開発環境ではFalse (本番環境ではTrue)
+SESSION_COOKIE_HTTPONLY = False  # JavaScriptからセッション情報を読めるようにする
+SESSION_COOKIE_AGE = 1209600  # 2週間
+
+# CORS対応：クッキーの SameSite=None 時の Secure フラグをオフ（HTTP開発環境用）
+# 本番環境では HTTPS + Secure=True に設定する必要があります
+SESSION_COOKIE_SAMESITE_FORCE_HTTPS = False
+
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
@@ -223,9 +221,6 @@ REST_FRAMEWORK = {
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# Static files storage
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Custom settings
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
