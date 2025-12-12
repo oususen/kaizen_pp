@@ -6,7 +6,7 @@ import { computed } from 'vue'
 const navItems = [
   { to: '/submit', label: '提出フォーム', resource: 'submit' },
   { to: '/proposals', label: '提出一覧', resource: 'proposals' },
-  { to: '/proposals/edit', label: '提案編集', resource: 'proposals' },
+  { to: '/proposals/edit', label: '提案編集', resource: 'proposal_edit' },
   { to: '/approvals', label: '承認センター', resource: 'approvals' },
   { to: '/confirmed', label: '確認済み一覧', resource: 'confirmed' },
   { to: '/reports', label: 'レポート', resource: 'reports' },

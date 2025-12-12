@@ -51,7 +51,7 @@ router.beforeEach(async (to, from, next) => {
     '/': 'submit',
     '/submit': 'submit',
     '/proposals': 'proposals',
-    '/proposals/edit': 'proposals',
+    '/proposals/edit': 'proposal_edit',
     '/approvals': 'approvals',
     '/confirmed': 'confirmed',
     '/reports': 'reports',

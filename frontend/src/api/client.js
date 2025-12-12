@@ -168,6 +168,43 @@ export const createProposal = (payload) => {
   })
 }
 
+export const updateProposal = (id, payload) => {
+  const formData = new FormData()
+  const appendFiles = (files, key) => {
+    if (Array.isArray(files)) {
+      files.forEach((file) => {
+        if (file instanceof File || file instanceof Blob) {
+          formData.append(key, file)
+        }
+      })
+    }
+  }
+  appendFiles(payload.before_images, 'before_images')
+  appendFiles(payload.after_images, 'after_images')
+
+  Object.entries(payload).forEach(([key, value]) => {
+    if (key === 'before_images' || key === 'after_images') return
+    if (value === undefined || value === null || value === '') return
+    if (key === 'contributors') {
+      const contributorsJson = JSON.stringify(value)
+      formData.append('contributors', contributorsJson)
+      return
+    }
+    if (key === 'before_image' || key === 'after_image') {
+      if (value instanceof File) {
+        formData.append(key, value)
+      }
+    } else {
+      formData.append(key, value)
+    }
+  })
+
+  return request(`/improvement-proposals/${id}/`, {
+    method: 'PATCH',
+    body: formData,
+  })
+}
+
 export const deleteProposal = (id) =>
   request(`/improvement-proposals/${id}/`, {
     method: 'DELETE',
@@ -310,5 +347,4 @@ export const deleteEmployee = (id) =>
   request(`/employees/${id}/`, {
     method: 'DELETE',
   })
-
 
