@@ -584,13 +584,14 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
             .select_related("department", "section", "group", "team", "proposer")
             .prefetch_related("approvals__confirmed_by", "contributors__employee")
         )
-        if department_filter:
-            proposals = proposals.filter(department__name=department_filter)
+        # 部門フィルターは後でreports.pyで適用（contributorベース）
+        # if department_filter:
+        #     proposals = proposals.filter(department__name=department_filter)
         if month_number:
             proposals = proposals.filter(submitted_at__month=month_number)
 
         from .services.reports import get_analytics_summary
-        data = get_analytics_summary(proposals, term_number)
+        data = get_analytics_summary(proposals, term_number, department_filter=department_filter)
         return Response(data)
 
 

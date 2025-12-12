@@ -58,20 +58,27 @@ def generate_term_report(proposals: Iterable[ImprovementProposal], term_number: 
     return buffer
 
 
-def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_number: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_summary_dataframe(
+    proposals: Iterable[ImprovementProposal],
+    term_number: int,
+    department_filter: str | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Returns a tuple of (formatted_summary_df, raw_data_df).
     raw_data_df contains more columns and is used for subsequent aggregations.
+
+    Note: 部門フィルター適用時、その部門に所属する従業員（contributor）のみを集計に含めます。
+    提案自体は期でフィルタリングされていますが、contributorは部門でフィルタリングします。
     """
     rows = []
     for i, p in enumerate(proposals, 1):
         submitted_at = p.submitted_at.astimezone(timezone.get_current_timezone()) if p.submitted_at else None
-        
+
         # Approvals
         approvals = {a.stage: a for a in p.approvals.all()}
         manager_approval = approvals.get(ProposalApproval.Stage.MANAGER)
         committee_approval = approvals.get(ProposalApproval.Stage.COMMITTEE)
-        
+
         # Scores (prioritize committee, then manager)
         mindset = getattr(committee_approval, "mindset_score", None) or getattr(manager_approval, "mindset_score", None)
         idea = getattr(committee_approval, "idea_score", None) or getattr(manager_approval, "idea_score", None)
@@ -85,6 +92,29 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
         contributors = getattr(p, "_prefetched_objects_cache", {}).get("contributors")
         if contributors is None:
             contributors = list(p.contributors.select_related("employee__department"))
+
+        # フィルタリング前に元のshare_weightsを計算して各contributorに保存
+        if contributors:
+            original_share_weights = _share_weights(contributors)
+            for contrib, share_weight in zip(contributors, original_share_weights):
+                # 元のshare_weightを一時属性として保存
+                contrib._original_share_weight = share_weight
+
+        # 部門フィルター適用時：その部門の従業員（contributor）のみを残す
+        if department_filter and contributors:
+            contributors = [
+                c for c in contributors
+                if (
+                    # 従業員の部門が一致
+                    (c.employee and c.employee.department and c.employee.department.name == department_filter)
+                    # または従業員情報がないが提案部門が一致（手入力の場合）
+                    or (not c.employee and dept_name == department_filter)
+                )
+            ]
+
+        # この提案に対象部門のcontributorがいない場合はスキップ
+        if department_filter and not contributors:
+            continue
 
         manager_approval = approvals.get(ProposalApproval.Stage.MANAGER)
         sdgs_checked = bool(getattr(manager_approval, "sdgs_flag", False))
@@ -194,7 +224,18 @@ def build_summary_dataframe(proposals: Iterable[ImprovementProposal], term_numbe
         contributor_count = max(len(contributors), 1)
         total_points = _to_decimal(row.get("提案ポイント")) or Decimal("0")
         total_reward = total_points * Decimal("300")
-        share_weights = _share_weights(contributors) if contributors else []
+
+        # 元のshare_weightsを使用（フィルタリング前に計算済み）
+        share_weights = []
+        if contributors:
+            for contrib in contributors:
+                # _original_share_weight属性があればそれを使用、なければ再計算
+                if hasattr(contrib, '_original_share_weight'):
+                    share_weights.append(contrib._original_share_weight)
+                else:
+                    # フォールバック（部門フィルターなしの場合）
+                    share_weights = _share_weights(contributors)
+                    break
 
         if contributors:
             for contrib, share_ratio in zip(contributors, share_weights):
@@ -276,7 +317,16 @@ def build_person_summary(df: pd.DataFrame) -> pd.DataFrame:
             return summary[key]
 
         if contributors:
-            share_weights = _share_weights(contributors)
+            # 元のshare_weightsを使用（フィルタリング前に計算済み）
+            share_weights = []
+            for contrib in contributors:
+                if hasattr(contrib, '_original_share_weight'):
+                    share_weights.append(contrib._original_share_weight)
+                else:
+                    # フォールバック（部門フィルターなしの場合）
+                    share_weights = _share_weights(contributors)
+                    break
+
             contributor_count = len(contributors) or 1
             for contrib, share_ratio in zip(contributors, share_weights):
                 employee = getattr(contrib, "employee", None)
@@ -377,7 +427,16 @@ def build_department_month_matrix(df: pd.DataFrame, term_number: int) -> pd.Data
         dept_default = row.get("提案部門") or "未設定"
 
         if contributors:
-            share_weights = _share_weights(contributors)
+            # 元のshare_weightsを使用（フィルタリング前に計算済み）
+            share_weights = []
+            for contrib in contributors:
+                if hasattr(contrib, '_original_share_weight'):
+                    share_weights.append(contrib._original_share_weight)
+                else:
+                    # フォールバック（部門フィルターなしの場合）
+                    share_weights = _share_weights(contributors)
+                    break
+
             for contrib, share_ratio in zip(contributors, share_weights):
                 employee = getattr(contrib, "employee", None)
                 dept_name = getattr(getattr(employee, "department", None), "name", None) or dept_default
@@ -398,12 +457,16 @@ def build_department_month_matrix(df: pd.DataFrame, term_number: int) -> pd.Data
         rows.append(row)
 
     return pd.DataFrame(rows, columns=columns).sort_values("部署").reset_index(drop=True)
-def get_analytics_summary(proposals: Iterable[ImprovementProposal], term_number: int) -> dict[str, Any]:
+def get_analytics_summary(
+    proposals: Iterable[ImprovementProposal],
+    term_number: int,
+    department_filter: str | None = None,
+) -> dict[str, Any]:
     """
     Generate analytics data for the frontend dashboard.
     Returns a dictionary containing list of records for person summary and department matrix.
     """
-    summary_df, raw_df = build_summary_dataframe(proposals, term_number)
+    summary_df, raw_df = build_summary_dataframe(proposals, term_number, department_filter=department_filter)
     
     # If no data, return empty lists instead of None to avoid 500s.
     if summary_df is None or raw_df is None or raw_df.empty:
