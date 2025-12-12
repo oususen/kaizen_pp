@@ -163,8 +163,11 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"[ViewSet.create] Request data keys: {request.data.keys()}")
+        logger.info(f"[ViewSet.create] Request FILES keys: {request.FILES.keys()}")
         logger.info(f"[ViewSet.create] Contributors raw: {request.data.get('contributors')}")
         logger.info(f"[ViewSet.create] Contributors type: {type(request.data.get('contributors'))}")
+        logger.info(f"[ViewSet.create] before_images in data: {'before_images' in request.data}")
+        logger.info(f"[ViewSet.create] before_images in FILES: {'before_images' in request.FILES}")
         return super().create(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):

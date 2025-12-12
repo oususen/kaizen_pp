@@ -465,16 +465,23 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         return files
 
     def _save_images(self, proposal: ImprovementProposal, files, kind: ProposalImage.Kind):
+        logger.info(f"[_save_images] Starting for proposal {proposal.id}, kind={kind}, files count={len(files)}")
         saved_paths = []
         for idx, file_obj in enumerate(files):
-            saved_path = save_proposal_image(file_obj, proposal.management_no, kind, suffix=str(idx + 1))
-            ProposalImage.objects.create(
-                proposal=proposal,
-                kind=kind,
-                image_path=saved_path,
-                display_order=idx,
-            )
-            saved_paths.append(saved_path)
+            logger.info(f"[_save_images] Processing file {idx}: {file_obj.name if hasattr(file_obj, 'name') else 'no name'}")
+            try:
+                saved_path = save_proposal_image(file_obj, proposal.management_no, kind, suffix=str(idx + 1))
+                logger.info(f"[_save_images] Saved to: {saved_path}")
+                ProposalImage.objects.create(
+                    proposal=proposal,
+                    kind=kind,
+                    image_path=saved_path,
+                    display_order=idx,
+                )
+                saved_paths.append(saved_path)
+            except Exception as e:
+                logger.error(f"[_save_images] Error saving file {idx}: {e}", exc_info=True)
+        logger.info(f"[_save_images] Completed, saved {len(saved_paths)} files")
         return saved_paths
 
     def _get_images_for_kind(self, obj: ImprovementProposal, kind: ProposalImage.Kind):
@@ -653,8 +660,13 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
             validated_data.setdefault("proposer_email", getattr(primary_employee, "email", ""))
         proposal = super().create(validated_data)
         updated_fields = []
+        logger.info(f"[create] request object: {request}")
+        logger.info(f"[create] request.FILES keys: {list(request.FILES.keys()) if request and hasattr(request, 'FILES') else 'No FILES attr'}")
+        logger.info(f"[create] request.data keys: {list(request.data.keys()) if request and hasattr(request, 'data') else 'No data attr'}")
         before_files = self._collect_files(request, "before_image", "before_images")
         after_files = self._collect_files(request, "after_image", "after_images")
+        logger.info(f"[create] before_files collected: {len(before_files)} files")
+        logger.info(f"[create] after_files collected: {len(after_files)} files")
         if not before_files and before_image:
             before_files = [before_image]
         if not after_files and after_image:
