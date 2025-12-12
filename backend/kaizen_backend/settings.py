@@ -166,7 +166,7 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = ROOT_DIR / 'media'
+MEDIA_ROOT = BASE_DIR / 'media'
 # Use relative media URLs by default so frontends resolve host/origin.
 # Set environment variable MEDIA_USE_RELATIVE_URLS=False to force absolute URLs.
 MEDIA_USE_RELATIVE_URLS = os.environ.get('MEDIA_USE_RELATIVE_URLS', 'True') == 'True'
