@@ -1,9 +1,11 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
-import { exportTermReport, fetchProposals, deleteProposal } from '../api/client'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { exportTermReport, fetchProposals, deleteProposal, updateProposal } from '../api/client'
 import { useAuth } from '../stores/auth'
 
 const auth = useAuth()
+const route = useRoute()
 const stageOptions = [
   { value: '', label: 'すべて' },
   { value: 'supervisor', label: '班長' },
@@ -30,8 +32,19 @@ const proposals = ref([])
 const selectedProposal = ref(null)
 const loading = ref(false)
 const message = ref('')
+const successMessage = ref('')
 const deleteDialogOpen = ref(false)
 const proposalToDelete = ref(null)
+const editForm = reactive({
+  deployment_item: '',
+  problem_summary: '',
+  improvement_plan: '',
+  improvement_result: '',
+  effect_details: '',
+  reduction_hours: null,
+  effect_amount: null,
+  contribution_business: '',
+})
 
 // Lightbox state
 const selectedImage = ref(null)
@@ -97,9 +110,13 @@ const statusBadgeText = (status) => {
   return '未確認'
 }
 
+const isEditPage = computed(() => route.path === '/proposals/edit')
+const canEditProposal = computed(() => isEditPage.value && auth.canEdit('proposal_edit'))
+
 const loadProposals = async () => {
   loading.value = true
   message.value = ''
+  successMessage.value = ''
   try {
     proposals.value = await fetchProposals(filters)
     if (selectedProposal.value) {
@@ -122,6 +139,8 @@ const selectProposal = (proposal) => {
 
 const closeDetail = () => {
   selectedProposal.value = null
+  successMessage.value = ''
+  resetEditForm()
 }
 
 const normalizedImages = (kind) => {
@@ -148,6 +167,83 @@ const effectDepartments = (proposal) => {
       .join('、')
   }
   return ''
+}
+
+const resetEditForm = () => {
+  if (!selectedProposal.value) {
+    Object.assign(editForm, {
+      deployment_item: '',
+      problem_summary: '',
+      improvement_plan: '',
+      improvement_result: '',
+      effect_details: '',
+      reduction_hours: null,
+      effect_amount: null,
+      contribution_business: '',
+    })
+    return
+  }
+  const p = selectedProposal.value
+  const contrib =
+    Array.isArray(p.contribution_business) && p.contribution_business.length
+      ? p.contribution_business.join(', ')
+      : typeof p.contribution_business === 'string'
+      ? p.contribution_business
+      : ''
+  Object.assign(editForm, {
+    deployment_item: p.deployment_item || '',
+    problem_summary: p.problem_summary || '',
+    improvement_plan: p.improvement_plan || '',
+    improvement_result: p.improvement_result || '',
+    effect_details: p.effect_details || '',
+    reduction_hours: p.reduction_hours ?? null,
+    effect_amount: p.effect_amount ?? null,
+    contribution_business: contrib,
+  })
+}
+
+watch(selectedProposal, () => {
+  if (isEditPage.value) {
+    resetEditForm()
+  }
+})
+
+const saveEdit = async () => {
+  if (!selectedProposal.value) return
+  const required = [
+    editForm.deployment_item,
+    editForm.problem_summary,
+    editForm.improvement_plan,
+    editForm.improvement_result,
+    editForm.effect_details,
+  ]
+  if (required.some((v) => v === null || v === undefined || String(v).trim() === '')) {
+    message.value = '必須項目を入力してください'
+    successMessage.value = ''
+    return
+  }
+  loading.value = true
+  message.value = ''
+  successMessage.value = ''
+  try {
+    await updateProposal(selectedProposal.value.id, {
+      deployment_item: editForm.deployment_item,
+      problem_summary: editForm.problem_summary,
+      improvement_plan: editForm.improvement_plan,
+      improvement_result: editForm.improvement_result,
+      effect_details: editForm.effect_details,
+      reduction_hours: editForm.reduction_hours,
+      effect_amount: editForm.effect_amount,
+      contribution_business: editForm.contribution_business,
+    })
+    successMessage.value = '提案を更新しました'
+    await loadProposals()
+    resetEditForm()
+  } catch (error) {
+    message.value = error.message ?? '更新に失敗しました'
+  } finally {
+    loading.value = false
+  }
 }
 
 // 班長以上の権限チェック
@@ -229,6 +325,7 @@ onMounted(loadProposals)
     </header>
 
     <div v-if="message" class="alert error">{{ message }}</div>
+    <div v-if="successMessage" class="alert success">{{ successMessage }}</div>
 
     <div class="filters">
       <label>
@@ -284,6 +381,48 @@ onMounted(loadProposals)
           <div class="detail-actions">
             <button v-if="canDelete" @click="openDeleteDialog(selectedProposal)" class="btn-delete">削除</button>
             <button @click="closeDetail" class="btn-back">← 戻る</button>
+          </div>
+        </div>
+
+        <div v-if="canEditProposal" class="edit-panel">
+          <h3>提案を編集</h3>
+          <div class="edit-grid">
+            <label>
+              テーマ*
+              <input v-model="editForm.deployment_item" type="text" />
+            </label>
+            <label>
+              困っている事・問題点*
+              <textarea v-model="editForm.problem_summary" rows="2"></textarea>
+            </label>
+            <label>
+              改善案*
+              <textarea v-model="editForm.improvement_plan" rows="2"></textarea>
+            </label>
+            <label>
+              改善結果*
+              <textarea v-model="editForm.improvement_result" rows="2"></textarea>
+            </label>
+            <label>
+              効果内容・効果算出*
+              <textarea v-model="editForm.effect_details" rows="2"></textarea>
+            </label>
+            <label>
+              削減時間 (Hr/月)
+              <input v-model.number="editForm.reduction_hours" type="number" step="0.01" min="0" />
+            </label>
+            <label>
+              月間効果額 (円/月)
+              <input v-model.number="editForm.effect_amount" type="number" step="1" min="0" />
+            </label>
+            <label>
+              効果部門
+              <input v-model="editForm.contribution_business" type="text" placeholder="カンマ区切りで入力" />
+            </label>
+          </div>
+          <div class="edit-actions">
+            <button class="btn-save" :disabled="loading" @click="saveEdit">{{ loading ? '保存中...' : '保存' }}</button>
+            <button class="btn-cancel" :disabled="loading" @click="resetEditForm">リセット</button>
           </div>
         </div>
 
@@ -999,6 +1138,73 @@ onMounted(loadProposals)
 .alert.error {
   background: #fee2e2;
   color: #991b1b;
+}
+.alert.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.edit-panel {
+  padding: 1.2rem 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.edit-panel h3 {
+  margin: 0 0 0.8rem 0;
+  font-size: 1.1rem;
+  color: #1f2937;
+}
+
+.edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.edit-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.edit-grid input,
+.edit-grid textarea {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.edit-actions {
+  margin-top: 0.9rem;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.btn-save {
+  padding: 0.6rem 1.2rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-save:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-cancel {
+  padding: 0.6rem 1.1rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 .modal-overlay {
