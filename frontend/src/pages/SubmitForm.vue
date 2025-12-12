@@ -252,7 +252,6 @@ const runLookup = async () => {
   try {
     const keyword = (lookupKeyword.value || '').trim()
     const params = {}
-    if (form.department) params.department = form.department
 
     console.log('[SubmitForm] Employee search - keyword:', keyword, 'params:', params)
 
@@ -1041,7 +1040,6 @@ button:disabled {
   }
 }
 </style>
-
 
 
 
