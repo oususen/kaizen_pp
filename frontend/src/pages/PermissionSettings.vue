@@ -16,10 +16,10 @@ const canEditPermissions = computed(() => canEdit('permissions'))
 const resources = [
   { key: 'submit', label: '提出フォーム' },
   { key: 'proposals', label: '提出済み一覧' },
+  { key: 'proposal_edit', label: '提案編集' },
   { key: 'approvals', label: '承認センター' },
   { key: 'confirmed', label: '確認済み一覧' },
   { key: 'reports', label: 'レポート' },
-  { key: 'analytics', label: '分析・レポート' },
   { key: 'permissions', label: '権限設定' },
   { key: 'user_management', label: 'ユーザー管理' },
   { key: 'employee_management', label: '従業員管理' },
