@@ -595,10 +595,35 @@ class ImprovementProposalViewSet(viewsets.ModelViewSet):
         return Response(data)
 
 
+class DebugView(APIView):
+    """デバッグ用の単純なエンドポイント"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[DebugView] Request reached! User: {request.user}")
+        logger.info(f"[DebugView] Cookies: {list(request.COOKIES.keys())}")
+        logger.info(f"[DebugView] Method: {request.method}")
+        return Response({
+            "message": "Debug endpoint working",
+            "user": str(request.user),
+            "authenticated": request.user.is_authenticated,
+            "cookies": list(request.COOKIES.keys()),
+        })
+
+
 class CurrentEmployeeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[CurrentEmployeeView] User: {request.user}, Authenticated: {request.user.is_authenticated}")
+        logger.debug(f"[CurrentEmployeeView] Cookies: {list(request.COOKIES.keys())}")
+        logger.debug(f"[CurrentEmployeeView] Session key: {request.session.session_key}")
+
         # UserProfileベースのユーザーの場合
         user_profile = getattr(request.user, "profile", None)
         if user_profile:
@@ -689,11 +714,20 @@ class LoginView(APIView):
     authentication_classes = []
 
     def post(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[LoginView] Request data keys: {request.data.keys()}")
+        logger.debug(f"[LoginView] Content-Type: {request.content_type}")
+
         username = request.data.get('username')
         password = request.data.get('password')
+        logger.debug(f"[LoginView] Username: {username}, Password provided: {bool(password)}")
+
         if not username or not password:
+            logger.warning(f"[LoginView] Missing credentials - username: {bool(username)}, password: {bool(password)}")
             return Response({'detail': 'ユーザー名とパスワードを入力してください'}, status=status.HTTP_400_BAD_REQUEST)
         user = authenticate(request, username=username, password=password)
+        logger.info(f"[LoginView] Authentication successful: {username}" if user else f"[LoginView] Authentication failed: {username}")
         if not user:
             return Response({'detail': '認証に失敗しました'}, status=status.HTTP_400_BAD_REQUEST)
         login(request, user)
@@ -732,6 +766,11 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[LogoutView] User: {request.user}, Authenticated: {request.user.is_authenticated}")
+        logger.debug(f"[LogoutView] Session key: {request.session.session_key}")
+        logger.debug(f"[LogoutView] CSRF token from header: {request.META.get('HTTP_X_CSRFTOKEN')}")
         logout(request)
         return Response({'detail': 'logged out'})
 
@@ -744,6 +783,14 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None
+
+    def list(self, request, *args, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[UserViewSet.list] User: {request.user}, Authenticated: {request.user.is_authenticated}")
+        logger.debug(f"[UserViewSet.list] Session key: {request.session.session_key}")
+        logger.debug(f"[UserViewSet.list] Cookies: {list(request.COOKIES.keys())}")
+        return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
         # 全てのアクティブなユーザーを返す

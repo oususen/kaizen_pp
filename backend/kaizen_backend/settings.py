@@ -211,9 +211,19 @@ CSRF_COOKIE_HTTPONLY = False  # JavaScriptからCSRFトークンを読めるよ�
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SECURE = False  # 開発環境ではFalse (本番環境ではTrue)
 
+# Session Cookie設定
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = False  # 開発環境ではFalse (本番環境ではTrue)
+SESSION_COOKIE_AGE = 86400  # 24時間
+SESSION_SAVE_EVERY_REQUEST = False
+
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
+    ],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "proposals.authentication.CsrfExemptSessionAuthentication",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
