@@ -3,8 +3,8 @@ import { fetchCurrentEmployee, loginUser, logoutUser } from '../api/client'
 
 const state = reactive({
   isAuthenticated: false,
-  user: null,
-  employee: null,
+  user: null, // ユーザー名
+  profile: null, // ユーザープロファイル（新旧統一）
   permissions: [],
   loading: false,
   error: '',
@@ -12,32 +12,49 @@ const state = reactive({
 })
 
 const setAuth = (payload) => {
-  // NOTE: 旧レスポンス形式は `{ username, employee: {...} }` のため username 判定を先にすると誤判定する。
-  if (payload?.employee) {
-    // 従来のEmployeeベースのユーザー
-    state.employee = payload.employee
-    state.user = payload.username ?? payload.employee?.name ?? null
-    state.permissions = payload.employee?.permissions ?? []
-  } else if (payload?.username) {
-    // UserProfileベースのユーザー（新システム）
-    state.user = payload.username
-    state.employee = {
-      name: payload.name || payload.username,
-      profile: payload.profile,
-      permissions: payload.permissions || []
-    }
-    state.permissions = payload.permissions || []
-  } else if (payload) {
-    // その他の形式
-    state.employee = payload
-    state.user = payload?.name ?? null
-    state.permissions = payload?.permissions ?? []
-  } else {
-    state.employee = null
+  if (!payload) {
+    // ログアウト
+    state.profile = null
     state.user = null
     state.permissions = []
+    state.isAuthenticated = false
+    return
   }
-  state.isAuthenticated = Boolean(state.employee)
+
+  // 旧システムのレスポンス形式: { username, employee: {...} }
+  // 新形式 (state.profile) に統一するため変換する
+  if (payload?.employee) {
+    const emp = payload.employee
+    // 旧形式を新形式に変換
+    state.user = payload.username ?? emp.name ?? null
+    state.profile = {
+      name: emp.name,
+      role: emp.profile?.role || emp.role,
+      responsible_department: emp.profile?.responsible_department || emp.department,
+      responsible_department_detail: emp.profile?.responsible_department_detail || emp.department_detail,
+      // 旧システム用の後方互換フィールド
+      _legacy: emp,
+    }
+    state.permissions = emp.permissions || []
+  }
+  // 新レスポンス形式: { username, profile: {...}, permissions: [...] }
+  else if (payload?.username) {
+    state.user = payload.username
+    state.profile = payload.profile
+    state.permissions = payload.permissions || []
+  }
+  // その他の形式
+  else {
+    state.user = payload.name ?? null
+    state.profile = {
+      name: payload.name,
+      role: payload.role,
+      responsible_department: payload.department,
+    }
+    state.permissions = payload.permissions || []
+  }
+
+  state.isAuthenticated = Boolean(state.user)
 }
 
 const init = async () => {
@@ -84,8 +101,7 @@ const logout = async () => {
 const defaultViewAllow = new Set(['submit', 'proposals'])
 
 const isAdmin = () => {
-  const role = state.employee?.profile?.role || state.employee?.role
-  return role === 'admin'
+  return state.profile?.role === 'admin'
 }
 
 const canView = (resource) => {
@@ -98,7 +114,7 @@ const canView = (resource) => {
 const canEdit = (resource) => {
   if (isAdmin()) return true
   const perm = state.permissions.find((p) => p.resource === resource)
-  return perm ? perm.can_edit : false // Default edit is閉じる
+  return perm ? perm.can_edit : false
 }
 
 export const useAuth = () => ({
