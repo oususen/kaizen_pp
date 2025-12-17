@@ -12,7 +12,13 @@ const state = reactive({
 })
 
 const setAuth = (payload) => {
-  if (payload?.username) {
+  // NOTE: 旧レスポンス形式は `{ username, employee: {...} }` のため username 判定を先にすると誤判定する。
+  if (payload?.employee) {
+    // 従来のEmployeeベースのユーザー
+    state.employee = payload.employee
+    state.user = payload.username ?? payload.employee?.name ?? null
+    state.permissions = payload.employee?.permissions ?? []
+  } else if (payload?.username) {
     // UserProfileベースのユーザー（新システム）
     state.user = payload.username
     state.employee = {
@@ -21,11 +27,6 @@ const setAuth = (payload) => {
       permissions: payload.permissions || []
     }
     state.permissions = payload.permissions || []
-  } else if (payload?.employee) {
-    // 従来のEmployeeベースのユーザー
-    state.employee = payload.employee
-    state.user = payload.username ?? payload.employee?.name ?? null
-    state.permissions = payload.employee?.permissions ?? []
   } else if (payload) {
     // その他の形式
     state.employee = payload
@@ -108,4 +109,3 @@ export const useAuth = () => ({
   canView,
   canEdit,
 })
-
