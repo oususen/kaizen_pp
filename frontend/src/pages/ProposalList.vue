@@ -248,7 +248,7 @@ const saveEdit = async () => {
 
 // 班長以上の権限チェック
 const canDelete = computed(() => {
-  const role = auth.state.employee?.profile?.role || auth.state.employee?.role
+  const role = auth.state.profile?.role
   const allowedRoles = ['supervisor', 'chief', 'manager', 'committee', 'committee_chair', 'admin']
   return allowedRoles.includes(role)
 })

@@ -141,8 +141,7 @@ const proposalPointShare = computed(() => {
 const orderedStages = ['supervisor', 'chief', 'manager', 'committee']
 
 const allowedStages = computed(() => {
-  // UserProfileベース（新システム）とEmployeeベース（旧システム）の両方に対応
-  const role = auth.state.employee?.profile?.role || auth.state.employee?.role
+  const role = auth.state.profile?.role
   switch (role) {
     case 'supervisor':
       return ['supervisor']
@@ -167,7 +166,7 @@ const visibleStages = computed(() => {
 })
 
 const preferredStageForRole = () => {
-  const role = auth.state.employee?.profile?.role || auth.state.employee?.role
+  const role = auth.state.profile?.role
   const preferredByRole = {
     supervisor: 'supervisor',
     chief: 'chief',
@@ -215,10 +214,9 @@ const ensureStage = () => {
 
 // ログインユーザーの役割と所属に応じてフィルタリング
 const filteredProposals = computed(() => {
-  // UserProfileベース（新システム）またはEmployeeベース（旧システム）に対応
-  const userProfile = auth.state.employee?.profile || auth.state.employee
-  const role = userProfile?.role
-  const dept = userProfile?.responsible_department || userProfile?.department
+  const profile = auth.state.profile
+  const role = profile?.role
+  const dept = profile?.responsible_department
 
   // システム管理者は全ての提案を閲覧可能
   if (role === 'admin') {
@@ -310,7 +308,7 @@ const openApprovalDialog = () => {
   if (!ensureStage()) return
   dialogOpen.value = true
   form.status = 'approved'
-  form.confirmed_name = auth.state.employee?.name || auth.state.user?.username || ''
+  form.confirmed_name = auth.state.profile?.name || auth.state.user || ''
   form.comment = ''
   form.mindset = selectedProposal.value?.mindset_score ?? 3
   form.idea = selectedProposal.value?.idea_score ?? 3

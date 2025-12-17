@@ -19,7 +19,7 @@ const navItems = [
 const auth = useAuth()
 const router = useRouter()
 
-const userLabel = computed(() => auth.state.employee?.name ?? auth.state.user ?? '未ログイン')
+const userLabel = computed(() => auth.state.profile?.name ?? auth.state.user ?? '未ログイン')
 
 const visibleNavItems = computed(() => {
   return navItems.filter(item => auth.canView(item.resource))

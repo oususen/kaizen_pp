@@ -9,6 +9,7 @@ const originalPermissions = ref([])
 const loading = ref(false)
 const message = ref('')
 const hasChanges = ref(false)
+const selectedRole = ref('')
 
 const { canEdit } = usePermissions()
 const canEditPermissions = computed(() => canEdit('permissions'))
@@ -25,6 +26,21 @@ const resources = [
   { key: 'employee_management', label: '従業員管理' },
   { key: 'profile', label: 'プロフィール' },
 ]
+
+const roleOptions = [
+  { value: 'staff', label: '一般社員' },
+  { value: 'supervisor', label: '班長' },
+  { value: 'chief', label: '係長' },
+  { value: 'manager', label: '部門長・課長' },
+  { value: 'committee', label: '改善委員' },
+  { value: 'committee_chair', label: '改善委員長' },
+  { value: 'admin', label: 'システム管理者' },
+]
+
+const filteredUsers = computed(() => {
+  if (!selectedRole.value) return users.value
+  return users.value.filter(user => (user.profile?.role || '') === selectedRole.value)
+})
 
 const loadData = async () => {
   loading.value = true
@@ -118,6 +134,21 @@ onMounted(loadData)
 
     <div v-if="message" class="alert" :class="message.includes('失敗') ? 'error' : 'success'">{{ message }}</div>
 
+    <div class="filters">
+      <div class="filter-group">
+        <label for="role-filter">ユーザーロール</label>
+        <select id="role-filter" v-model="selectedRole" :disabled="loading">
+          <option value="">すべて</option>
+          <option v-for="role in roleOptions" :key="role.value" :value="role.value">
+            {{ role.label }}
+          </option>
+        </select>
+      </div>
+      <div class="filter-summary">
+        {{ filteredUsers.length }} / {{ users.length }} 名を表示
+      </div>
+    </div>
+
     <div v-if="loading" class="placeholder">読み込み中です…</div>
     <div v-else class="table-container">
       <table class="permissions-table">
@@ -135,31 +166,36 @@ onMounted(loadData)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in users" :key="user.id">
-            <td class="sticky-col">
-              <div class="employee-info">
-                <strong>{{ user.username }}</strong>
-                <small>{{ user.profile?.responsible_department_detail?.name || '担当部署未設定' }}</small>
-              </div>
-            </td>
-            <template v-for="res in resources" :key="res.key">
-              <td class="checkbox-cell">
-                <input
-                  type="checkbox"
-                  :checked="getPermission(user.id, res.key)?.can_view ?? false"
-                  @change="togglePermission(user.id, res.key, 'can_view')"
-                  :disabled="!canEditPermissions"
-                />
+          <template v-if="filteredUsers.length">
+            <tr v-for="user in filteredUsers" :key="user.id">
+              <td class="sticky-col">
+                <div class="employee-info">
+                  <strong>{{ user.username }}</strong>
+                  <small>{{ user.profile?.responsible_department_detail?.name || '担当部署未設定' }}</small>
+                </div>
               </td>
-              <td class="checkbox-cell">
-                <input
-                  type="checkbox"
-                  :checked="getPermission(user.id, res.key)?.can_edit ?? false"
-                  @change="togglePermission(user.id, res.key, 'can_edit')"
-                  :disabled="!canEditPermissions"
-                />
-              </td>
-            </template>
+              <template v-for="res in resources" :key="res.key">
+                <td class="checkbox-cell">
+                  <input
+                    type="checkbox"
+                    :checked="getPermission(user.id, res.key)?.can_view ?? false"
+                    @change="togglePermission(user.id, res.key, 'can_view')"
+                    :disabled="!canEditPermissions"
+                  />
+                </td>
+                <td class="checkbox-cell">
+                  <input
+                    type="checkbox"
+                    :checked="getPermission(user.id, res.key)?.can_edit ?? false"
+                    @change="togglePermission(user.id, res.key, 'can_edit')"
+                    :disabled="!canEditPermissions"
+                  />
+                </td>
+              </template>
+            </tr>
+          </template>
+          <tr v-else>
+            <td class="no-data" :colspan="1 + resources.length * 2">該当するユーザーがいません</td>
           </tr>
         </tbody>
       </table>
@@ -229,6 +265,32 @@ onMounted(loadData)
   text-align: center;
   color: #6b7280;
 }
+.filters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: #374151;
+}
+.filter-group select {
+  min-width: 180px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+}
+.filter-summary {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
 .table-container {
   overflow-x: auto;
 }
@@ -283,5 +345,11 @@ onMounted(loadData)
 .checkbox-cell input[type="checkbox"]:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+.no-data {
+  text-align: center;
+  padding: 1.5rem;
+  color: #6b7280;
+  background: #f8fafc;
 }
 </style>
