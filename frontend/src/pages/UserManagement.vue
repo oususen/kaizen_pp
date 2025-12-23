@@ -312,7 +312,8 @@ onMounted(() => {
             </small>
           </div>
 
-          <h3 style="margin-top: 2rem; margin-bottom: 1rem; color: #374151;">メール送信設定（SMTP）</h3>
+          <h3 style="margin-top: 2rem; margin-bottom: 0.5rem; color: #374151;">メール送信設定（SMTP）</h3>
+          <p class="hint smtp-warning">SMTP設定は運用上変更禁止です</p>
 
           <div class="form-group">
             <label>SMTPホスト</label>
@@ -521,6 +522,9 @@ tbody tr:hover {
   font-size: 0.875rem;
   color: #6b7280;
   font-weight: 400;
+}
+.smtp-warning {
+  color: #dc2626;
 }
 
 .form-group input,

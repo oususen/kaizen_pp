@@ -142,6 +142,7 @@ onMounted(async () => {
 
       <div class="section-span">
         <h3>SMTP設定</h3>
+        <p class="hint">SMTP設定は運用上変更禁止です</p>
         <div class="grid-2">
           <label>
             SMTPホスト
@@ -187,6 +188,12 @@ label {
   flex-direction: column;
   gap: 0.35rem;
   font-weight: 600;
+}
+.hint {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.875rem;
+  color: #dc2626;
+  font-weight: 400;
 }
 input, select {
   padding: 0.7rem 0.8rem;
