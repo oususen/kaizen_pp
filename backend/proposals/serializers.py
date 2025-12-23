@@ -914,7 +914,7 @@ class ImprovementProposalSerializer(serializers.ModelSerializer):
         テーマ: {proposal.deployment_item}
 
         下記URLから内容を確認し、承認をお願いします。
-        http://10.0.1.194:5000/approval-center
+        http://10.0.1.232:8503/approval-center
         """
 
         try:
