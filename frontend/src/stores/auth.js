@@ -11,6 +11,18 @@ const state = reactive({
   initialized: false,
 })
 
+const deriveDisplayName = (payload) => {
+  if (!payload) return null
+  return (
+    payload.name ||
+    payload.profile?.name ||
+    payload.username ||
+    payload.employee?.name ||
+    payload.employee_name ||
+    null
+  )
+}
+
 const setAuth = (payload) => {
   if (!payload) {
     // ログアウト
@@ -21,6 +33,8 @@ const setAuth = (payload) => {
     return
   }
 
+  const displayName = deriveDisplayName(payload)
+
   // 旧システムのレスポンス形式: { username, employee: {...} }
   // 新形式 (state.profile) に統一するため変換する
   if (payload?.employee) {
@@ -28,7 +42,8 @@ const setAuth = (payload) => {
     // 旧形式を新形式に変換
     state.user = payload.username ?? emp.name ?? null
     state.profile = {
-      name: emp.name,
+      ...(payload.profile || {}),
+      name: displayName || emp.name,
       role: emp.profile?.role || emp.role,
       responsible_department: emp.profile?.responsible_department || emp.department,
       responsible_department_detail: emp.profile?.responsible_department_detail || emp.department_detail,
@@ -40,14 +55,19 @@ const setAuth = (payload) => {
   // 新レスポンス形式: { username, profile: {...}, permissions: [...] }
   else if (payload?.username) {
     state.user = payload.username
-    state.profile = payload.profile
+    state.profile = {
+      ...(payload.profile || {}),
+      name: displayName || payload.username,
+    }
     state.permissions = payload.permissions || []
   }
   // その他の形式
   else {
-    state.user = payload.name ?? null
+    const fallbackName = displayName || payload.name || payload.username || null
+    state.user = payload.username ?? fallbackName
     state.profile = {
-      name: payload.name,
+      ...(payload.profile || {}),
+      name: fallbackName,
       role: payload.role,
       responsible_department: payload.department,
     }

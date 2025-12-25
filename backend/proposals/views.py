@@ -737,9 +737,10 @@ class LoginView(APIView):
         user_profile = getattr(user, "profile", None)
         if user_profile:
             user_data = UserSerializer(user).data
+            display_name = user.first_name or user_data.get("name") or user.username
             response_data = {
                 'username': user.username,
-                'name': user.first_name or user.username,
+                'name': display_name,
                 'profile': user_data.get('profile'),
                 'permissions': user_data.get('permissions', [])
             }
